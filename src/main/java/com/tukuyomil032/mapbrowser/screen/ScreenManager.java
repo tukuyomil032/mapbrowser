@@ -40,6 +40,7 @@ public final class ScreenManager {
     public void init() {
         for (final Screen screen : plugin.getDataStore().loadScreens()) {
             screens.put(screen.getId(), screen);
+            plugin.getFrameRenderer().registerScreen(screen);
         }
         plugin.getLogger().log(Level.INFO, "Loaded screens: {0}", screens.size());
     }
@@ -79,6 +80,7 @@ public final class ScreenManager {
         );
 
         screens.put(screen.getId(), screen);
+        plugin.getFrameRenderer().registerScreen(screen);
         setSelected(player.getUniqueId(), screen.getId());
         return screen;
     }

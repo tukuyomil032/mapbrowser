@@ -391,6 +391,8 @@ public final class BrowserIPCClient {
     }
 
     private final class Listener implements WebSocket.Listener {
+        private final StringBuilder textBuffer = new StringBuilder();
+
         @Override
         public void onOpen(final WebSocket webSocket) {
             webSocket.request(1);
@@ -399,7 +401,11 @@ public final class BrowserIPCClient {
 
         @Override
         public CompletionStage<?> onText(final WebSocket webSocket, final CharSequence data, final boolean last) {
-            onMessage(data.toString());
+            textBuffer.append(data);
+            if (last) {
+                onMessage(textBuffer.toString());
+                textBuffer.setLength(0);
+            }
             webSocket.request(1);
             return CompletableFuture.completedFuture(null);
         }
