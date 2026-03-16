@@ -1,0 +1,60 @@
+# Ignore Gradle project-specific cache directory
+.gradle
+
+# Ignore Gradle build output directory
+build
+
+# Ignore Kotlin plugin data
+.kotlin
+
+# Ignore Node.js dependencies and build output
+browser-renderer/node_modules
+browser-renderer/dist
+
+# Ignore common logs and temp files
+*.log
+*.tmp
+
+# Dependencies
+node_modules/
+bun.lockb
+
+# Build output
+dist/
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary files
+*.tmp
+.temp/
+temp/
+
+# Linter and formatter cache
+.eslintcache
+.prettier-cache
+
+# documents
+IMPLEMENTATION_TODO.md
+PHASE_REPORT.md
+RELEASE_CHECKLIST.md

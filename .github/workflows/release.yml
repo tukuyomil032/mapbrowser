@@ -1,0 +1,96 @@
+name: release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-tag-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: pnpm
+          cache-dependency-path: |
+            pnpm-lock.yaml
+            browser-renderer/pnpm-lock.yaml
+
+      - name: Resolve version from Gradle build script
+        id: version
+        shell: bash
+        run: |
+          VERSION=$(grep -E '^version\s*=\s*"' build.gradle.kts | head -n 1 | sed -E 's/version\s*=\s*"([^"]+)"/\1/')
+          if [[ -z "$VERSION" ]]; then
+            echo "Failed to resolve version from build.gradle.kts"
+            exit 1
+          fi
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag when missing
+        id: tag
+        shell: bash
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "created=false" >> "$GITHUB_OUTPUT"
+            echo "Tag already exists: $TAG"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git tag -a "$TAG" -m "release: $TAG"
+            git push origin "$TAG"
+            echo "created=true" >> "$GITHUB_OUTPUT"
+            echo "Tag created: $TAG"
+          fi
+
+      - name: Build plugin
+        run: ./gradlew --no-daemon shadowJar
+
+      - name: Build browser renderer
+        run: |
+          cd browser-renderer
+          pnpm install --frozen-lockfile
+          pnpm run build
+
+      - name: Collect release assets
+        shell: bash
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          mkdir -p release-assets
+          cp "build/libs/MapBrowser-${VERSION}-all.jar" "release-assets/"
+          tar -czf "release-assets/browser-renderer-dist-${VERSION}.tar.gz" -C browser-renderer dist package.json
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: MapBrowser ${{ steps.version.outputs.tag }}
+          files: |
+            release-assets/*
+          generate_release_notes: true

@@ -1,0 +1,42 @@
+browser:
+  node-path: ""
+  renderer-dir: "browser-renderer"
+  ipc-port: 25600
+  auto-restart: true
+  max-restart-attempts: 3
+  restart-delay: 30
+
+screen:
+  default-fps: 10
+  max-fps: 20
+  max-width: 8
+  max-height: 8
+  max-screens-per-world: 8
+  render-distance: 64
+
+security:
+  allow-http: false
+  block-local-network: true
+  url-whitelist: []
+  url-blacklist:
+    - "*.onion"
+
+youtube:
+  use-ytdlp: true
+  ytdlp-path: "yt-dlp"
+
+audio:
+  companion-mod-enabled: false
+  channel: "mapbrowser:audio"
+
+items:
+  pointer: FEATHER
+  back: BOW
+  forward: ARROW
+  reload: COMPASS
+  url-bar: BOOK_AND_QUILL
+  scroll-up: SLIME_BALL
+  scroll-down: MAGMA_CREAM
+
+storage: yaml
+debug: false

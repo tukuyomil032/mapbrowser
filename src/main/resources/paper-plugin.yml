@@ -1,0 +1,32 @@
+name: MapBrowser
+version: 1.0.0
+main: com.tukuyomil032.mapbrowser.MapBrowserPlugin
+api-version: '1.21'
+author: [tukuyomi1032]
+softdepend: [PacketEvents, AnvilGUI]
+
+commands:
+  mapbrowser:
+    description: MapBrowser main command
+    aliases: [mb]
+    usage: /mapbrowser
+
+permissions:
+  mapbrowser.create:
+    default: op
+  mapbrowser.destroy:
+    default: op
+  mapbrowser.destroy.others:
+    default: op
+  mapbrowser.use:
+    default: op
+  mapbrowser.use.others:
+    default: op
+  mapbrowser.view:
+    default: "true"
+  mapbrowser.admin:
+    default: op
+  mapbrowser.bypass.whitelist:
+    default: op
+  mapbrowser.reload:
+    default: op

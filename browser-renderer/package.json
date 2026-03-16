@@ -1,0 +1,37 @@
+{
+  "name": "browser-renderer",
+  "version": "1.0.0",
+  "description": "Headless browser renderer for MapBrowser plugin",
+  "main": "dist/index.js",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "format": "biome format --write .",
+    "lint": "biome lint --write .",
+    "biome:check": "biome check ."
+  },
+  "author": "tukuyomil032",
+  "license": "MIT",
+  "dependencies": {
+    "piscina": "^5.1.4",
+    "playwright": "^1.58.2",
+    "sharp": "^0.34.5",
+    "ws": "^8.19.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.4.7",
+    "@types/node": "^25.5.0",
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "lint-staged": {
+    "src/**/*.{ts,json}": [
+      "biome format --write",
+      "biome lint --write"
+    ]
+  },
+    "packageManager": "pnpm@10.27.0"
+}
