@@ -5,6 +5,7 @@
 ## 目次
 
 - [インストール](installation.md)
+- [ゲーム内利用ガイド](usage-guide.md)
 - [設定リファレンス](configuration.md)
 - [コマンド一覧](commands.md)
 - [アーキテクチャ](architecture.md)

@@ -1,9 +1,11 @@
 package com.tukuyomil032.mapbrowser.ipc;
 
 import java.io.IOException;
+import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Base64;
@@ -31,10 +33,12 @@ public final class BrowserIPCClient {
     private final MapBrowserPlugin plugin;
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
     private final AtomicInteger restartAttempts = new AtomicInteger(0);
+    private final AtomicInteger connectFailures = new AtomicInteger(0);
 
     private volatile WebSocket socket;
     private volatile Process rendererProcess;
     private volatile boolean stopping;
+    private volatile long rendererStartEpochMillis;
 
     /**
      * Creates IPC client.
@@ -159,16 +163,29 @@ public final class BrowserIPCClient {
         final String nodePath = plugin.getConfig().getString("browser.node-path", "");
         final String executable = nodePath == null || nodePath.isBlank() ? "node" : nodePath;
         final String rendererDir = plugin.getConfig().getString("browser.renderer-dir", "browser-renderer");
+        final java.io.File configuredDir = rendererDir == null ? new java.io.File("browser-renderer") : new java.io.File(rendererDir);
+        final java.io.File workingDir = configuredDir.isAbsolute()
+                ? configuredDir
+                : new java.io.File(Bukkit.getWorldContainer(), rendererDir).getAbsoluteFile();
 
         try {
             final ProcessBuilder pb = new ProcessBuilder(executable, "dist/index.js");
-            pb.directory(new java.io.File(Bukkit.getWorldContainer(), rendererDir));
+            pb.directory(workingDir);
             pb.redirectErrorStream(true);
             rendererProcess = pb.start();
+            rendererStartEpochMillis = System.currentTimeMillis();
+            connectFailures.set(0);
             watchRendererExit(rendererProcess);
-            plugin.getLogger().info("Started browser-renderer process.");
+                plugin.getLogger().log(Level.INFO,
+                    "Started browser-renderer process: node={0} dir={1}",
+                    new Object[]{executable, workingDir.getAbsolutePath()});
         } catch (final IOException | RuntimeException ex) {
             plugin.getLogger().log(Level.WARNING, "Failed to start browser-renderer process: {0}", ex.getMessage());
+            plugin.getLogger().log(Level.WARNING, "Renderer startup context: node={0}, dir={1}, dirExists={2}", new Object[]{
+                    executable,
+                    workingDir.getAbsolutePath(),
+                    workingDir.exists()
+            });
         }
     }
 
@@ -196,10 +213,19 @@ public final class BrowserIPCClient {
                     socket = ws;
                     reconnecting.set(false);
                     restartAttempts.set(0);
+                    connectFailures.set(0);
                     plugin.getLogger().log(Level.INFO, "Connected to browser-renderer: {0}", uri);
                 })
                 .exceptionally(ex -> {
-                    plugin.getLogger().log(Level.WARNING, "IPC connect failed: {0}", ex.getMessage());
+                    final Throwable cause = rootCause(ex);
+                    final int failures = connectFailures.incrementAndGet();
+                    if (isTransientBootConnectFailure(cause)) {
+                        plugin.getLogger().log(Level.INFO,
+                                "IPC endpoint is not ready yet (attempt {0}): {1}",
+                                new Object[]{failures, describeThrowable(cause)});
+                    } else {
+                        plugin.getLogger().log(Level.WARNING, "IPC connect failed: {0}", describeThrowable(cause));
+                    }
                     scheduleReconnect();
                     return null;
                 });
@@ -216,7 +242,41 @@ public final class BrowserIPCClient {
         Bukkit.getScheduler().runTaskLaterAsynchronously(plugin, () -> {
             reconnecting.set(false);
             connect();
-        }, 20L * 3L);
+        }, isRendererBootingWindow() ? 20L : 20L * 3L);
+    }
+
+    private boolean isRendererBootingWindow() {
+        final long startedAt = rendererStartEpochMillis;
+        if (startedAt <= 0L) {
+            return false;
+        }
+        return (System.currentTimeMillis() - startedAt) <= 15_000L;
+    }
+
+    private static Throwable rootCause(final Throwable throwable) {
+        Throwable current = throwable;
+        while (current.getCause() != null) {
+            current = current.getCause();
+        }
+        return current;
+    }
+
+    private boolean isTransientBootConnectFailure(final Throwable throwable) {
+        if (!isRendererBootingWindow()) {
+            return false;
+        }
+        return throwable instanceof ConnectException || throwable instanceof ClosedChannelException;
+    }
+
+    private static String describeThrowable(final Throwable throwable) {
+        if (throwable == null) {
+            return "unknown error";
+        }
+        final String message = throwable.getMessage();
+        if (message == null || message.isBlank()) {
+            return throwable.toString();
+        }
+        return throwable.getClass().getSimpleName() + ": " + message;
     }
 
     private void watchRendererExit(final Process process) {

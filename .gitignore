@@ -49,6 +49,7 @@ yarn-error.log*
 *.tmp
 .temp/
 temp/
+run/*
 
 # Linter and formatter cache
 .eslintcache

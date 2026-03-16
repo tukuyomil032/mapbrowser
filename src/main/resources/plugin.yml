@@ -1,8 +1,11 @@
+# yaml-language-server: $schema=https://json.schemastore.org/bukkit-plugin
+
 name: MapBrowser
 version: 1.0.0
 main: com.tukuyomil032.mapbrowser.MapBrowserPlugin
-api-version: '1.21'
-author: [tukuyomi1032]
+api-version: '1.21.11'
+authors: [tukuyomil032]
+description: In-game web browser rendering plugin for Minecraft map screens.
 softdepend: [PacketEvents, AnvilGUI]
 
 commands:
@@ -23,7 +26,7 @@ permissions:
   mapbrowser.use.others:
     default: op
   mapbrowser.view:
-    default: "true"
+    default: true
   mapbrowser.admin:
     default: op
   mapbrowser.bypass.whitelist:

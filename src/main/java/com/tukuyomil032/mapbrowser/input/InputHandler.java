@@ -8,6 +8,7 @@ import java.util.UUID;
 
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
+import org.bukkit.NamespacedKey;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -20,6 +21,7 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.persistence.PersistentDataType;
 
 import com.tukuyomil032.mapbrowser.MapBrowserPlugin;
 import com.tukuyomil032.mapbrowser.screen.Screen;
@@ -34,6 +36,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 public final class InputHandler implements Listener {
     private final MapBrowserPlugin plugin;
     private final Map<UUID, UUID> anvilSessions;
+    private final NamespacedKey toolKey;
 
     /**
      * Creates input handler.
@@ -41,6 +44,7 @@ public final class InputHandler implements Listener {
     public InputHandler(final MapBrowserPlugin plugin) {
         this.plugin = plugin;
         this.anvilSessions = new HashMap<>();
+        this.toolKey = new NamespacedKey(plugin, "tool");
     }
 
     /**
@@ -63,9 +67,9 @@ public final class InputHandler implements Listener {
         }
 
         final Screen screen = selected.get();
-        final Material held = player.getInventory().getItemInMainHand().getType();
+        final ItemStack heldItem = player.getInventory().getItemInMainHand();
 
-        if (isConfigured(held, "items.pointer", Material.FEATHER)) {
+        if (matchesTool(heldItem, "pointer", "items.pointer", Material.FEATHER)) {
             final int x = screen.getWidth() * 64;
             final int y = screen.getHeight() * 64;
             plugin.getBrowserIPCClient().sendMouseClick(screen.getId(), x, y, "left");
@@ -73,37 +77,37 @@ public final class InputHandler implements Listener {
             return;
         }
 
-        if (isConfigured(held, "items.back", Material.BOW)) {
+        if (matchesTool(heldItem, "back", "items.back", Material.BOW)) {
             plugin.getBrowserIPCClient().sendGoBack(screen.getId());
             event.setCancelled(true);
             return;
         }
 
-        if (isConfigured(held, "items.forward", Material.ARROW)) {
+        if (matchesTool(heldItem, "forward", "items.forward", Material.ARROW)) {
             plugin.getBrowserIPCClient().sendGoForward(screen.getId());
             event.setCancelled(true);
             return;
         }
 
-        if (isConfigured(held, "items.reload", Material.COMPASS)) {
+        if (matchesTool(heldItem, "reload", "items.reload", Material.COMPASS)) {
             plugin.getBrowserIPCClient().sendReload(screen.getId());
             event.setCancelled(true);
             return;
         }
 
-        if (isConfigured(held, "items.scroll-up", Material.SLIME_BALL)) {
+        if (matchesTool(heldItem, "scroll-up", "items.scroll-up", Material.SLIME_BALL)) {
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), -300);
             event.setCancelled(true);
             return;
         }
 
-        if (isConfigured(held, "items.scroll-down", Material.MAGMA_CREAM)) {
+        if (matchesTool(heldItem, "scroll-down", "items.scroll-down", Material.MAGMA_CREAM)) {
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), 300);
             event.setCancelled(true);
             return;
         }
 
-        if (isConfigured(held, "items.url-bar", Material.WRITABLE_BOOK)) {
+        if (matchesTool(heldItem, "url-bar", "items.url-bar", Material.WRITABLE_BOOK)) {
             openUrlInput(player, screen);
             event.setCancelled(true);
         }
@@ -218,5 +222,23 @@ public final class InputHandler implements Listener {
         } catch (final IllegalArgumentException ex) {
             return held == fallback;
         }
+    }
+
+    private boolean matchesTool(
+            final ItemStack heldItem,
+            final String expectedTool,
+            final String path,
+            final Material fallback
+    ) {
+        if (heldItem != null && heldItem.hasItemMeta()) {
+            final ItemMeta meta = heldItem.getItemMeta();
+            if (meta != null) {
+                final String tagged = meta.getPersistentDataContainer().get(toolKey, PersistentDataType.STRING);
+                if (tagged != null) {
+                    return tagged.equalsIgnoreCase(expectedTool);
+                }
+            }
+        }
+        return isConfigured(heldItem == null ? Material.AIR : heldItem.getType(), path, fallback);
     }
 }

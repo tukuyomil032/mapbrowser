@@ -65,6 +65,7 @@ public final class MapBrowserPlugin extends JavaPlugin {
             getCommand("mapbrowser").setExecutor(command);
             getCommand("mapbrowser").setTabCompleter(command);
         }
+        getServer().getPluginManager().registerEvents(command, this);
 
         getServer().getPluginManager().registerEvents(new InputHandler(this), this);
         startHudTask();
