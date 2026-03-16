@@ -15,6 +15,7 @@ import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
 import org.bukkit.Sound;
 import org.bukkit.block.BlockFace;
+import org.bukkit.block.ShulkerBox;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandExecutor;
 import org.bukkit.command.CommandSender;
@@ -25,6 +26,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
+import org.bukkit.inventory.meta.BlockStateMeta;
 import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.map.MapView;
@@ -68,9 +70,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if (args.length == 0) {
             sendHeader(sender, "MAPBROWSER COMMANDS");
             sendInfo(sender, "/mb create <w> <h> [name]");
-            sendInfo(sender, "/mb menu");
+            sendInfo(sender, "/mb menu|gui");
             sendInfo(sender, "/mb select <screen-id|screen-name>");
-            sendInfo(sender, "/mb list, /mb info, /mb destroy, /mb exit");
+            sendInfo(sender, "/mb list, /mb info, /mb delete [screen], /mb exit");
+            sendInfo(sender, "/mb refill [screen], /mb resize <screen> <w> <h>");
+            sendInfo(sender, "/mb config simulate_particle <end_rod|flame>");
             sendInfo(sender, "/mb open <url>, /mb back, /mb forward, /mb reload, /mb fps <value>");
             sendInfo(sender, "/mb give <pointer|back|forward|reload|url-bar|scroll-up|scroll-down>");
             sendInfo(sender, "/mb admin status|deps|stop <screenId>");
@@ -81,7 +85,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         final String sub = args[0].toLowerCase(Locale.ROOT);
         return switch (sub) {
             case "create" -> handleCreate(sender, args);
-            case "menu" -> handleMenu(sender);
+            case "menu", "gui" -> handleMenu(sender);
             case "select" -> handleSelect(sender, args);
             case "open" -> handleOpen(sender, args);
             case "back" -> handleSimpleBrowserCommand(sender, "GO_BACK");
@@ -90,7 +94,14 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "fps" -> handleFps(sender, args);
             case "list" -> handleList(sender);
             case "info" -> handleInfo(sender);
-            case "destroy" -> handleDestroy(sender);
+            case "delete" -> handleDestroy(sender, args);
+            case "remove", "destroy" -> {
+                sendError(sender, "Use /mb delete.");
+                yield true;
+            }
+            case "refill" -> handleRefill(sender, args);
+            case "resize" -> handleResize(sender, args);
+            case "config" -> handleConfig(sender, args);
             case "give" -> handleGive(sender, args);
             case "exit" -> handleExit(sender);
             case "admin" -> handleAdmin(sender, args);
@@ -112,7 +123,28 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             final String[] args
     ) {
         if (args.length == 1) {
-            return Arrays.asList("create", "menu", "select", "open", "back", "forward", "reload", "fps", "list", "info", "destroy", "give", "exit", "admin");
+            return Arrays.asList("create", "menu", "gui", "select", "open", "back", "forward", "reload", "fps", "list", "info", "delete", "refill", "resize", "config", "give", "exit", "admin");
+        }
+        if (args.length == 2 && "create".equalsIgnoreCase(args[0])) {
+            return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
+        }
+        if (args.length == 3 && "create".equalsIgnoreCase(args[0])) {
+            return rangeValues(plugin.getConfig().getInt("screen.max-height", 8));
+        }
+        if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "refill".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]))) {
+            return screenNameSuggestions();
+        }
+        if (args.length == 3 && "resize".equalsIgnoreCase(args[0])) {
+            return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
+        }
+        if (args.length == 4 && "resize".equalsIgnoreCase(args[0])) {
+            return rangeValues(plugin.getConfig().getInt("screen.max-height", 8));
+        }
+        if (args.length == 2 && "config".equalsIgnoreCase(args[0])) {
+            return List.of("simulate_particle");
+        }
+        if (args.length == 3 && "config".equalsIgnoreCase(args[0]) && "simulate_particle".equalsIgnoreCase(args[1])) {
+            return List.of("end_rod", "flame");
         }
         if (args.length == 2 && "select".equalsIgnoreCase(args[0])) {
             final List<String> names = plugin.getScreenManager().getAllScreens().stream()
@@ -169,15 +201,23 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final String name = args.length >= 4 ? String.join(" ", Arrays.copyOfRange(args, 3, args.length)) : "screen-" + System.currentTimeMillis();
+        final boolean duplicateName = plugin.getScreenManager().getAllScreens().stream()
+            .anyMatch(screen -> screen.getName().equalsIgnoreCase(name));
+        if (duplicateName) {
+            sendError(sender, "Screen name already exists: " + name);
+            return true;
+        }
+
         final Screen screen = plugin.getScreenManager().createScreen(player, BlockFace.NORTH, width, height, name);
         plugin.getBrowserIPCClient().sendOpen(screen.getId(), width, height, screen.getFps());
-        final int delivered = giveScreenMaps(player, screen);
+        final MapDeliverySummary summary = giveScreenMaps(player, screen);
 
         sendHeader(sender, "SCREEN CREATED");
         sendOk(sender, "Name: " + screen.getName());
         sendInfo(sender, "ID: " + screen.getId());
         sendInfo(sender, "Size: " + width + "x" + height + " maps");
-        sendInfo(sender, "Given maps: " + delivered + "/" + (width * height));
+        sendInfo(sender, "Map total: " + summary.totalMaps() + " (direct=" + summary.directMaps() + ", bundles=" + summary.bundleBoxes() + ")");
+        sendInfo(sender, "Starter frame given: place 1 frame + 1 starter map, rest auto-fills.");
         sendInfo(sender, "Use /mb select " + screen.getName() + " to re-select later.");
         sendInfo(sender, "Placement guide: " + (width * height) + " item frames, no map rotation.");
         sendInfo(sender, "Tile order: left->right, then top->bottom.");
@@ -217,7 +257,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         menu.setItem(32, createMenuItem(Material.GLOWSTONE_DUST, "FPS 10", "fps-10", "Balanced mode"));
         menu.setItem(33, createMenuItem(Material.BLAZE_POWDER, "FPS 15", "fps-15", "High refresh mode"));
 
-        menu.setItem(40, createMenuItem(Material.BARRIER, "Destroy Selected", "destroy", "Delete selected screen"));
+        menu.setItem(40, createMenuItem(Material.BARRIER, "Delete Selected", "delete", "Delete selected screen"));
         menu.setItem(49, createMenuItem(Material.OAK_DOOR, "Exit Selection", "exit", "Clear selected screen"));
 
         player.openInventory(menu);
@@ -435,7 +475,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         return true;
     }
 
-    private boolean handleDestroy(final CommandSender sender) {
+    private boolean handleDestroy(final CommandSender sender, final String[] args) {
         if (sender == null) {
             return true;
         }
@@ -444,9 +484,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        final Optional<Screen> selected = plugin.getScreenManager().getSelected(player.getUniqueId());
+        final Optional<Screen> selected = args.length >= 2
+                ? resolveScreen(args[1], player)
+                : plugin.getScreenManager().getSelected(player.getUniqueId());
         if (selected.isEmpty()) {
-            sendError(sender, "No selected screen.");
+            sendError(sender, args.length >= 2 ? "Screen not found." : "No selected screen.");
             return true;
         }
 
@@ -458,6 +500,173 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             sendError(sender, "Destroy failed.");
         }
         return true;
+    }
+
+    private boolean handleRefill(final CommandSender sender, final String[] args) {
+        if (!(sender instanceof Player player)) {
+            sendError(sender, "Player only command.");
+            return true;
+        }
+
+        final Optional<Screen> target = args.length >= 2
+                ? resolveScreen(args[1], player)
+                : plugin.getScreenManager().getSelected(player.getUniqueId());
+        if (target.isEmpty()) {
+            sendError(sender, args.length >= 2 ? "Screen not found." : "No selected screen.");
+            return true;
+        }
+
+        final Screen screen = target.get();
+        final int[] mapIds = screen.getMapIds();
+        final boolean[] hasTile = new boolean[mapIds.length];
+        final NamespacedKey screenKey = new NamespacedKey(plugin, "screen-id");
+        final NamespacedKey tileKey = new NamespacedKey(plugin, "tile-index");
+
+        for (final ItemStack stack : player.getInventory().getContents()) {
+            if (stack == null || stack.getType() != Material.FILLED_MAP || !stack.hasItemMeta()) {
+                continue;
+            }
+            if (!(stack.getItemMeta() instanceof MapMeta meta)) {
+                continue;
+            }
+            final String sid = meta.getPersistentDataContainer().get(screenKey, PersistentDataType.STRING);
+            final Integer idx = meta.getPersistentDataContainer().get(tileKey, PersistentDataType.INTEGER);
+            if (sid == null || idx == null || !sid.equals(screen.getId().toString())) {
+                continue;
+            }
+            if (idx >= 0 && idx < hasTile.length) {
+                hasTile[idx] = true;
+            }
+        }
+
+        int missing = 0;
+        for (int i = 0; i < hasTile.length; i++) {
+            if (hasTile[i]) {
+                continue;
+            }
+            giveItemOrDrop(player, createScreenMapItem(screen, i));
+            missing++;
+        }
+
+        sendOk(sender, "Refill completed. Missing maps supplied: " + missing);
+        return true;
+    }
+
+    private boolean handleResize(final CommandSender sender, final String[] args) {
+        if (!(sender instanceof Player player)) {
+            sendError(sender, "Player only command.");
+            return true;
+        }
+        if (!plugin.getPermissionManager().has(sender, "mapbrowser.create")) {
+            sendError(sender, "No permission.");
+            return true;
+        }
+        if (args.length < 4) {
+            sendError(sender, "Usage: /mb resize <screen-id|screen-name> <w> <h>");
+            return true;
+        }
+
+        final Optional<Screen> target = resolveScreen(args[1], player);
+        if (target.isEmpty()) {
+            sendError(sender, "Screen not found.");
+            return true;
+        }
+
+        final int width;
+        final int height;
+        try {
+            width = Integer.parseInt(args[2]);
+            height = Integer.parseInt(args[3]);
+        } catch (final NumberFormatException ex) {
+            sendError(sender, "Width/height must be integer.");
+            return true;
+        }
+
+        final int maxWidth = plugin.getConfig().getInt("screen.max-width", 8);
+        final int maxHeight = plugin.getConfig().getInt("screen.max-height", 8);
+        if (width <= 0 || height <= 0 || width > maxWidth || height > maxHeight) {
+            sendError(sender, "Screen size must be 1.." + maxWidth + " x 1.." + maxHeight);
+            return true;
+        }
+
+        final Optional<Screen> resized = plugin.getScreenManager().resizeScreen(target.get().getId(), width, height);
+        if (resized.isEmpty()) {
+            sendError(sender, "Resize failed.");
+            return true;
+        }
+
+        plugin.getBrowserIPCClient().sendClose(target.get().getId());
+        plugin.getBrowserIPCClient().sendOpen(resized.get().getId(), width, height, resized.get().getFps());
+        if (resized.get().getCurrentUrl() != null && !resized.get().getCurrentUrl().isBlank()) {
+            plugin.getBrowserIPCClient().sendNavigate(resized.get().getId(), resized.get().getCurrentUrl());
+        }
+
+        final MapDeliverySummary summary = giveScreenMaps(player, resized.get());
+        sendOk(sender, "Screen resized to " + width + "x" + height + ".");
+        sendInfo(sender, "Map total: " + summary.totalMaps() + " (direct=" + summary.directMaps() + ", bundles=" + summary.bundleBoxes() + ")");
+        return true;
+    }
+
+    private boolean handleConfig(final CommandSender sender, final String[] args) {
+        if (!plugin.getPermissionManager().has(sender, "mapbrowser.admin")) {
+            sendError(sender, "No permission.");
+            return true;
+        }
+        if (args.length < 3) {
+            sendError(sender, "Usage: /mb config simulate_particle <end_rod|flame>");
+            return true;
+        }
+        if (!"simulate_particle".equalsIgnoreCase(args[1])) {
+            sendError(sender, "Unknown config key: " + args[1]);
+            return true;
+        }
+
+        final String value = args[2].toLowerCase(Locale.ROOT);
+        if (!"end_rod".equals(value) && !"flame".equals(value)) {
+            sendError(sender, "Value must be end_rod or flame.");
+            return true;
+        }
+
+        plugin.getConfig().set("ui.simulate-particle", value);
+        plugin.saveConfig();
+        sendOk(sender, "simulate_particle updated: " + value);
+        return true;
+    }
+
+    private Optional<Screen> resolveScreen(final String query, final Player player) {
+        if (query == null || query.isBlank()) {
+            return Optional.empty();
+        }
+        if ("latest".equalsIgnoreCase(query)) {
+            return plugin.getScreenManager().getAllScreens().stream()
+                    .max(Comparator.comparing(Screen::getCreatedAt));
+        }
+
+        try {
+            final Optional<Screen> byId = plugin.getScreenManager().getScreen(UUID.fromString(query));
+            if (byId.isPresent()) {
+                return byId;
+            }
+        } catch (final IllegalArgumentException ignored) {
+            // Ignore and fallback to name search.
+        }
+
+        final Optional<Screen> byName = plugin.getScreenManager().getAllScreens().stream()
+                .filter(screen -> screen.getName().equalsIgnoreCase(query))
+                .findFirst();
+        if (byName.isPresent()) {
+            return byName;
+        }
+
+        return plugin.getScreenManager().getSelected(player.getUniqueId());
+    }
+
+    private List<String> screenNameSuggestions() {
+        return plugin.getScreenManager().getAllScreens().stream()
+                .sorted(Comparator.comparing(Screen::getCreatedAt).reversed())
+                .limit(20)
+                .map(Screen::getName)
+                .toList();
     }
 
     private boolean handleGive(final CommandSender sender, final String[] args) {
@@ -590,39 +799,116 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         return true;
     }
 
-    private int giveScreenMaps(final Player player, final Screen screen) {
-        final int[] mapIds = screen.getMapIds();
-        int delivered = 0;
-        for (int index = 0; index < mapIds.length; index++) {
-            final ItemStack mapItem = new ItemStack(Material.FILLED_MAP, 1);
-            if (!(mapItem.getItemMeta() instanceof MapMeta meta)) {
-                continue;
-            }
-            final MapView mapView = Bukkit.getMap(mapIds[index]);
-            if (mapView != null) {
-                meta.setMapView(mapView);
-            }
-            meta.displayName(Component.text("MapBrowser Display Tile", NamedTextColor.AQUA));
-            final int row = (index / screen.getWidth()) + 1;
-            final int col = (index % screen.getWidth()) + 1;
-            meta.lore(List.of(
-                    Component.text("Screen: " + screen.getName(), NamedTextColor.GRAY),
-                    Component.text("Tile: " + col + "," + row + " / " + screen.getWidth() + "x" + screen.getHeight(), NamedTextColor.DARK_GRAY),
-                    Component.text("ID: " + mapIds[index], NamedTextColor.DARK_GRAY)
-            ));
-            meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "screen-id"), PersistentDataType.STRING, screen.getId().toString());
-            meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "tile-index"), PersistentDataType.INTEGER, index);
-            mapItem.setItemMeta(meta);
+    private MapDeliverySummary giveScreenMaps(final Player player, final Screen screen) {
+        final int totalMaps = screen.getMapIds().length;
+        int directMaps = 0;
+        int bundleBoxes = 0;
 
-            final HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(mapItem);
-            if (overflow.isEmpty()) {
-                delivered++;
-                continue;
-            }
-            overflow.values().forEach(stack -> player.getWorld().dropItemNaturally(player.getLocation(), stack));
-            delivered++;
+        giveItemOrDrop(player, createStarterFrameItem(screen));
+        if (totalMaps > 0) {
+            giveItemOrDrop(player, createScreenMapItem(screen, 0));
+            directMaps++;
         }
-        return delivered;
+
+        if (totalMaps <= 36) {
+            for (int index = 1; index < totalMaps; index++) {
+                giveItemOrDrop(player, createScreenMapItem(screen, index));
+                directMaps++;
+            }
+            return new MapDeliverySummary(totalMaps, directMaps, bundleBoxes);
+        }
+
+        int index = 1;
+        while (index < totalMaps) {
+            final int endExclusive = Math.min(index + 27, totalMaps);
+            giveItemOrDrop(player, createMapBundleBox(screen, index, endExclusive));
+            bundleBoxes++;
+            index = endExclusive;
+        }
+
+        return new MapDeliverySummary(totalMaps, directMaps, bundleBoxes);
+    }
+
+    private ItemStack createScreenMapItem(final Screen screen, final int tileIndex) {
+        final int[] mapIds = screen.getMapIds();
+        final ItemStack mapItem = new ItemStack(Material.FILLED_MAP, 1);
+        if (!(mapItem.getItemMeta() instanceof MapMeta meta)) {
+            return mapItem;
+        }
+
+        final int mapId = mapIds[tileIndex];
+        final MapView mapView = Bukkit.getMap(mapId);
+        if (mapView != null) {
+            meta.setMapView(mapView);
+        }
+        meta.displayName(Component.text("MapBrowser Display Tile", NamedTextColor.AQUA));
+        final int row = (tileIndex / screen.getWidth()) + 1;
+        final int col = (tileIndex % screen.getWidth()) + 1;
+        meta.lore(List.of(
+                Component.text("Screen: " + screen.getName(), NamedTextColor.GRAY),
+                Component.text("Tile: " + col + "," + row + " / " + screen.getWidth() + "x" + screen.getHeight(), NamedTextColor.DARK_GRAY),
+                Component.text("ID: " + mapId, NamedTextColor.DARK_GRAY)
+        ));
+        meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "screen-id"), PersistentDataType.STRING, screen.getId().toString());
+        meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "tile-index"), PersistentDataType.INTEGER, tileIndex);
+        mapItem.setItemMeta(meta);
+        return mapItem;
+    }
+
+    private ItemStack createStarterFrameItem(final Screen screen) {
+        final ItemStack frame = new ItemStack(Material.ITEM_FRAME, 1);
+        final ItemMeta meta = java.util.Objects.requireNonNull(frame.getItemMeta(), "Frame meta unavailable");
+        meta.displayName(Component.text("MapBrowser Starter Frame", NamedTextColor.GOLD));
+        meta.lore(List.of(
+                Component.text("Place 1 frame, insert starter map, then auto-fill.", NamedTextColor.GRAY),
+                Component.text("Screen: " + screen.getName(), NamedTextColor.DARK_GRAY)
+        ));
+        meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "screen-id"), PersistentDataType.STRING, screen.getId().toString());
+        meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "starter-frame"), PersistentDataType.BYTE, (byte) 1);
+        frame.setItemMeta(meta);
+        return frame;
+    }
+
+    private ItemStack createMapBundleBox(final Screen screen, final int startInclusive, final int endExclusive) {
+        final ItemStack shulkerItem = new ItemStack(Material.SHULKER_BOX, 1);
+        if (!(shulkerItem.getItemMeta() instanceof BlockStateMeta blockMeta)) {
+            return shulkerItem;
+        }
+        if (!(blockMeta.getBlockState() instanceof ShulkerBox shulker)) {
+            return shulkerItem;
+        }
+
+        int slot = 0;
+        for (int i = startInclusive; i < endExclusive; i++) {
+            shulker.getInventory().setItem(slot++, createScreenMapItem(screen, i));
+        }
+        blockMeta.setBlockState(shulker);
+        blockMeta.displayName(Component.text("MapBrowser Map Bundle", NamedTextColor.LIGHT_PURPLE));
+        blockMeta.lore(List.of(
+                Component.text("Screen: " + screen.getName(), NamedTextColor.GRAY),
+                Component.text("Tiles: " + (startInclusive + 1) + ".." + endExclusive, NamedTextColor.DARK_GRAY)
+        ));
+        shulkerItem.setItemMeta(blockMeta);
+        return shulkerItem;
+    }
+
+    private void giveItemOrDrop(final Player player, final ItemStack item) {
+        final HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(item);
+        if (!overflow.isEmpty()) {
+            overflow.values().forEach(stack -> player.getWorld().dropItemNaturally(player.getLocation(), stack));
+        }
+    }
+
+    private List<String> rangeValues(final int maxValue) {
+        final int max = Math.max(1, maxValue);
+        final ArrayList<String> values = new ArrayList<>(max);
+        for (int i = 1; i <= max; i++) {
+            values.add(String.valueOf(i));
+        }
+        return values;
+    }
+
+    private record MapDeliverySummary(int totalMaps, int directMaps, int bundleBoxes) {
     }
 
     @EventHandler
@@ -694,7 +980,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "fps-5" -> "mb fps 5";
             case "fps-10" -> "mb fps 10";
             case "fps-15" -> "mb fps 15";
-            case "destroy" -> "mb destroy";
+            case "delete" -> "mb delete";
             case "exit" -> "mb exit";
             default -> "mb";
         };

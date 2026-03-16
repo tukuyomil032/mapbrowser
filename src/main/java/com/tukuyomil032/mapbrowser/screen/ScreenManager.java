@@ -99,6 +99,48 @@ public final class ScreenManager {
     }
 
     /**
+     * Resizes an existing screen while keeping id/name/url/owner.
+     */
+    public Optional<Screen> resizeScreen(final UUID screenId, final int width, final int height) {
+        final Screen old = screens.get(screenId);
+        if (old == null) {
+            return Optional.empty();
+        }
+
+        World world = Bukkit.getWorld(old.getWorldName());
+        if (world == null) {
+            world = Bukkit.getWorlds().isEmpty() ? null : Bukkit.getWorlds().get(0);
+        }
+        if (world == null) {
+            return Optional.empty();
+        }
+
+        final int[] mapIds = allocateMapIds(world, width * height);
+        final Screen resized = new Screen(
+                old.getId(),
+                old.getName(),
+                old.getWorldName(),
+                old.getOriginX(),
+                old.getOriginY(),
+                old.getOriginZ(),
+                old.getFace(),
+                width,
+                height,
+                old.getOwnerUuid(),
+                old.getCreatedAt(),
+                mapIds,
+                old.getCurrentUrl(),
+                old.getFps(),
+                ScreenState.LOADING
+        );
+
+        plugin.getFrameRenderer().clear(screenId);
+        screens.put(screenId, resized);
+        plugin.getFrameRenderer().registerScreen(resized);
+        return Optional.of(resized);
+    }
+
+    /**
      * Finds a screen by id.
      */
     public Optional<Screen> getScreen(final UUID screenId) {

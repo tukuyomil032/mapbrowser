@@ -38,5 +38,8 @@ items:
   scroll-up: SLIME_BALL
   scroll-down: MAGMA_CREAM
 
+ui:
+  simulate-particle: END_ROD
+
 storage: yaml
 debug: false

@@ -1,14 +1,22 @@
 package com.tukuyomil032.mapbrowser.input;
 
+import java.util.Collection;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.NamespacedKey;
+import org.bukkit.Particle;
+import org.bukkit.World;
+import org.bukkit.block.BlockFace;
+import org.bukkit.entity.Entity;
+import org.bukkit.entity.ItemFrame;
 import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
@@ -16,11 +24,14 @@ import org.bukkit.event.block.Action;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
+import org.bukkit.inventory.meta.MapMeta;
+import org.bukkit.map.MapView;
 import org.bukkit.persistence.PersistentDataType;
 
 import com.tukuyomil032.mapbrowser.MapBrowserPlugin;
@@ -36,7 +47,10 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 public final class InputHandler implements Listener {
     private final MapBrowserPlugin plugin;
     private final Map<UUID, UUID> anvilSessions;
+    private final HashSet<UUID> assembledScreens;
     private final NamespacedKey toolKey;
+    private final NamespacedKey screenIdKey;
+    private final NamespacedKey tileIndexKey;
 
     /**
      * Creates input handler.
@@ -44,7 +58,10 @@ public final class InputHandler implements Listener {
     public InputHandler(final MapBrowserPlugin plugin) {
         this.plugin = plugin;
         this.anvilSessions = new HashMap<>();
+        this.assembledScreens = new HashSet<>();
         this.toolKey = new NamespacedKey(plugin, "tool");
+        this.screenIdKey = new NamespacedKey(plugin, "screen-id");
+        this.tileIndexKey = new NamespacedKey(plugin, "tile-index");
     }
 
     /**
@@ -53,6 +70,20 @@ public final class InputHandler implements Listener {
     @EventHandler
     public void onInteract(final PlayerInteractEvent event) {
         if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+            return;
+        }
+
+        final Player previewPlayer = event.getPlayer();
+        final ItemStack previewHeld = previewPlayer.getInventory().getItemInMainHand();
+        final Optional<Screen> previewScreen = resolveStarterMapScreen(previewHeld);
+        if (previewScreen.isPresent() && event.getClickedBlock() != null) {
+            final BlockFace clickedFace = event.getBlockFace();
+            if (clickedFace == BlockFace.UP || clickedFace == BlockFace.DOWN) {
+                previewPlayer.sendMessage("Starter map preview works on wall faces only.");
+                return;
+            }
+            showSimulationPreview(previewPlayer, previewScreen.get(), event.getClickedBlock().getLocation(), clickedFace);
+            event.setCancelled(true);
             return;
         }
 
@@ -198,6 +229,51 @@ public final class InputHandler implements Listener {
         anvilSessions.remove(event.getPlayer().getUniqueId());
     }
 
+    /**
+     * Auto-fills remaining frames and map tiles after the player inserts the first map tile.
+     */
+    @EventHandler
+    public void onItemFrameInteract(final PlayerInteractEntityEvent event) {
+        if (!(event.getRightClicked() instanceof ItemFrame anchorFrame)) {
+            return;
+        }
+
+        final ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
+        if (held.getType() != Material.FILLED_MAP || !held.hasItemMeta()) {
+            return;
+        }
+
+        final ItemMeta meta = held.getItemMeta();
+        final String screenIdRaw = meta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
+        final Integer tileIndex = meta.getPersistentDataContainer().get(tileIndexKey, PersistentDataType.INTEGER);
+        if (screenIdRaw == null || tileIndex == null) {
+            return;
+        }
+
+        final UUID screenId;
+        try {
+            screenId = UUID.fromString(screenIdRaw);
+        } catch (final IllegalArgumentException ignored) {
+            return;
+        }
+
+        final Optional<Screen> target = plugin.getScreenManager().getScreen(screenId);
+        if (target.isEmpty()) {
+            return;
+        }
+
+        if (tileIndex != 0) {
+            event.getPlayer().sendMessage("Use the first map tile (top-left) to auto-assemble.");
+            return;
+        }
+
+        if (assembledScreens.contains(screenId)) {
+            return;
+        }
+
+        Bukkit.getScheduler().runTask(plugin, () -> autoAssembleScreen(event.getPlayer(), target.get(), anchorFrame, tileIndex));
+    }
+
     private void openUrlInput(final Player player, final Screen screen) {
         final Inventory anvil = Bukkit.createInventory(player, InventoryType.ANVIL, Component.text("MapBrowser URL"));
         final ItemStack paper = new ItemStack(Material.PAPER);
@@ -240,5 +316,164 @@ public final class InputHandler implements Listener {
             }
         }
         return isConfigured(heldItem == null ? Material.AIR : heldItem.getType(), path, fallback);
+    }
+
+    private void autoAssembleScreen(
+            final Player player,
+            final Screen screen,
+            final ItemFrame anchorFrame,
+            final int tileIndex
+    ) {
+        if (assembledScreens.contains(screen.getId())) {
+            return;
+        }
+
+        final BlockFace facing = anchorFrame.getFacing();
+        final int[] right = rightVector(facing);
+        if (right == null) {
+            player.sendMessage("This frame direction is not supported for auto-assembly.");
+            return;
+        }
+
+        final int width = screen.getWidth();
+        final int height = screen.getHeight();
+        final int anchorCol = Math.floorMod(tileIndex, width);
+        final int anchorRow = tileIndex / width;
+
+        if (anchorCol != 0 || anchorRow != 0) {
+            player.sendMessage("Starter map must be tile 0 (top-left).");
+            return;
+        }
+
+        final Location anchorLoc = anchorFrame.getLocation();
+        final Location topLeft = anchorLoc.clone();
+
+        final World world = anchorLoc.getWorld();
+        if (world == null) {
+            return;
+        }
+
+        for (int row = 0; row < height; row++) {
+            for (int col = 0; col < width; col++) {
+                final int index = row * width + col;
+                final Location targetLoc = topLeft.clone().add(right[0] * col, -row, right[2] * col);
+                final Location backingLoc = targetLoc.clone().add(facing.getModX(), facing.getModY(), facing.getModZ());
+                if (backingLoc.getBlock().getType().isAir()) {
+                    backingLoc.getBlock().setType(Material.SMOOTH_STONE, false);
+                }
+                final ItemFrame frame = findOrCreateFrame(world, targetLoc, facing);
+                if (frame == null) {
+                    continue;
+                }
+                frame.setItem(createScreenMapItem(screen, index), false);
+            }
+        }
+
+        assembledScreens.add(screen.getId());
+        player.sendMessage("MapBrowser auto-assembly completed: " + width + "x" + height);
+    }
+
+    private ItemFrame findOrCreateFrame(final World world, final Location loc, final BlockFace facing) {
+        final Collection<Entity> nearby = world.getNearbyEntities(loc, 0.6, 0.6, 0.6);
+        for (final Entity entity : nearby) {
+            if (entity instanceof ItemFrame frame && frame.getFacing() == facing) {
+                return frame;
+            }
+        }
+
+        return world.spawn(loc, ItemFrame.class, spawned -> spawned.setFacingDirection(facing, true));
+    }
+
+    private int[] rightVector(final BlockFace facing) {
+        return switch (facing) {
+            case NORTH -> new int[]{1, 0, 0};
+            case SOUTH -> new int[]{-1, 0, 0};
+            case EAST -> new int[]{0, 0, 1};
+            case WEST -> new int[]{0, 0, -1};
+            default -> null;
+        };
+    }
+
+    private Optional<Screen> resolveStarterMapScreen(final ItemStack held) {
+        if (held == null || held.getType() != Material.FILLED_MAP || !held.hasItemMeta()) {
+            return Optional.empty();
+        }
+
+        final ItemMeta meta = held.getItemMeta();
+        final String screenIdRaw = meta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
+        final Integer tileIndex = meta.getPersistentDataContainer().get(tileIndexKey, PersistentDataType.INTEGER);
+        if (screenIdRaw == null || tileIndex == null || tileIndex != 0) {
+            return Optional.empty();
+        }
+
+        try {
+            return plugin.getScreenManager().getScreen(UUID.fromString(screenIdRaw));
+        } catch (final IllegalArgumentException ignored) {
+            return Optional.empty();
+        }
+    }
+
+    private void showSimulationPreview(
+            final Player player,
+            final Screen screen,
+            final Location clickedBlock,
+            final BlockFace face
+    ) {
+        final Particle particle = resolveSimulationParticle();
+        if (particle == null) {
+            return;
+        }
+
+        final int[] right = rightVector(face);
+        if (right == null) {
+            return;
+        }
+
+        final Location base = clickedBlock.clone()
+                .add(0.5 + (face.getModX() * 0.46875), 0.5 + (face.getModY() * 0.46875), 0.5 + (face.getModZ() * 0.46875));
+        final Location topLeft = base.clone().add(0, screen.getHeight() - 1, 0);
+
+        for (int row = 0; row < screen.getHeight(); row++) {
+            for (int col = 0; col < screen.getWidth(); col++) {
+                final Location loc = topLeft.clone().add(right[0] * col, -row, right[2] * col);
+                player.spawnParticle(particle, loc, 8, 0.16, 0.16, 0.16, 0.0);
+            }
+        }
+    }
+
+    private Particle resolveSimulationParticle() {
+        final String configured = plugin.getConfig().getString("ui.simulate-particle", "END_ROD");
+        if (configured == null) {
+            return Particle.END_ROD;
+        }
+
+        final String normalized = configured.trim().toUpperCase(Locale.ROOT);
+        if (normalized.isEmpty() || normalized.equals("NONE") || normalized.equals("OFF")) {
+            return null;
+        }
+
+        try {
+            return Particle.valueOf(normalized);
+        } catch (final IllegalArgumentException ignored) {
+            return Particle.END_ROD;
+        }
+    }
+
+    private ItemStack createScreenMapItem(final Screen screen, final int tileIndex) {
+        final int[] mapIds = screen.getMapIds();
+        final ItemStack mapItem = new ItemStack(Material.FILLED_MAP, 1);
+        if (!(mapItem.getItemMeta() instanceof MapMeta meta)) {
+            return mapItem;
+        }
+
+        final int mapId = mapIds[tileIndex];
+        final MapView mapView = Bukkit.getMap(mapId);
+        if (mapView != null) {
+            meta.setMapView(mapView);
+        }
+        meta.getPersistentDataContainer().set(screenIdKey, PersistentDataType.STRING, screen.getId().toString());
+        meta.getPersistentDataContainer().set(tileIndexKey, PersistentDataType.INTEGER, tileIndex);
+        mapItem.setItemMeta(meta);
+        return mapItem;
     }
 }
