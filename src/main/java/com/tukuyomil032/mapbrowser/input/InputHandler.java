@@ -21,6 +21,7 @@ import org.bukkit.entity.Player;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
+import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
@@ -51,6 +52,7 @@ public final class InputHandler implements Listener {
     private final NamespacedKey toolKey;
     private final NamespacedKey screenIdKey;
     private final NamespacedKey tileIndexKey;
+    private final NamespacedKey autofillKey;
 
     /**
      * Creates input handler.
@@ -62,6 +64,7 @@ public final class InputHandler implements Listener {
         this.toolKey = new NamespacedKey(plugin, "tool");
         this.screenIdKey = new NamespacedKey(plugin, "screen-id");
         this.tileIndexKey = new NamespacedKey(plugin, "tile-index");
+        this.autofillKey = new NamespacedKey(plugin, "autofill-enabled");
     }
 
     /**
@@ -69,14 +72,14 @@ public final class InputHandler implements Listener {
      */
     @EventHandler
     public void onInteract(final PlayerInteractEvent event) {
-        if (event.getAction() != Action.RIGHT_CLICK_BLOCK) {
+        if (event.getAction() != Action.RIGHT_CLICK_BLOCK && event.getAction() != Action.RIGHT_CLICK_AIR) {
             return;
         }
 
         final Player previewPlayer = event.getPlayer();
         final ItemStack previewHeld = previewPlayer.getInventory().getItemInMainHand();
         final Optional<Screen> previewScreen = resolveStarterMapScreen(previewHeld);
-        if (previewScreen.isPresent() && event.getClickedBlock() != null) {
+        if (previewScreen.isPresent() && event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null) {
             final BlockFace clickedFace = event.getBlockFace();
             if (clickedFace == BlockFace.UP || clickedFace == BlockFace.DOWN) {
                 previewPlayer.sendMessage("Starter map preview works on wall faces only.");
@@ -262,6 +265,11 @@ public final class InputHandler implements Listener {
             return;
         }
 
+        final Byte autoFillEnabled = meta.getPersistentDataContainer().get(autofillKey, PersistentDataType.BYTE);
+        if (autoFillEnabled == null || autoFillEnabled != (byte) 1) {
+            return;
+        }
+
         if (tileIndex != 0) {
             event.getPlayer().sendMessage("Use the first map tile (top-left) to auto-assemble.");
             return;
@@ -271,7 +279,63 @@ public final class InputHandler implements Listener {
             return;
         }
 
+        event.setCancelled(true);
+
         Bukkit.getScheduler().runTask(plugin, () -> autoAssembleScreen(event.getPlayer(), target.get(), anchorFrame, tileIndex));
+    }
+
+    /**
+     * Routes tool use directly on item frames.
+     */
+    @EventHandler
+    public void onToolFrameInteract(final PlayerInteractEntityEvent event) {
+        if (!(event.getRightClicked() instanceof ItemFrame frame)) {
+            return;
+        }
+
+        final ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
+        final Optional<ToolAction> action = resolveToolAction(held);
+        if (action.isEmpty()) {
+            return;
+        }
+
+        final Optional<Screen> screen = resolveScreenFromFrame(event.getPlayer(), frame);
+        if (screen.isEmpty()) {
+            event.getPlayer().sendMessage("No selected screen. Use /mb select <screen>.");
+            event.setCancelled(true);
+            return;
+        }
+
+        executeToolAction(event.getPlayer(), screen.get(), action.get());
+        event.setCancelled(true);
+    }
+
+    /**
+     * Prevents map extraction when left-clicking frames with control tools.
+     */
+    @EventHandler
+    public void onToolFrameDamage(final EntityDamageByEntityEvent event) {
+        if (!(event.getDamager() instanceof Player player) || !(event.getEntity() instanceof ItemFrame frame)) {
+            return;
+        }
+
+        final ItemStack held = player.getInventory().getItemInMainHand();
+        final Optional<ToolAction> action = resolveToolAction(held);
+        if (action.isEmpty()) {
+            return;
+        }
+
+        final Optional<Screen> screen = resolveScreenFromFrame(player, frame);
+        if (screen.isEmpty()) {
+            player.sendMessage("No selected screen. Use /mb select <screen>.");
+            event.setCancelled(true);
+            return;
+        }
+
+        if (action.get() == ToolAction.POINTER) {
+            executeToolAction(player, screen.get(), action.get());
+        }
+        event.setCancelled(true);
     }
 
     private void openUrlInput(final Player player, final Screen screen) {
@@ -357,7 +421,8 @@ public final class InputHandler implements Listener {
             for (int col = 0; col < width; col++) {
                 final int index = row * width + col;
                 final Location targetLoc = topLeft.clone().add(right[0] * col, -row, right[2] * col);
-                final Location backingLoc = targetLoc.clone().add(facing.getModX(), facing.getModY(), facing.getModZ());
+                final BlockFace backing = facing.getOppositeFace();
+                final Location backingLoc = targetLoc.clone().add(backing.getModX(), backing.getModY(), backing.getModZ());
                 if (backingLoc.getBlock().getType().isAir()) {
                     backingLoc.getBlock().setType(Material.SMOOTH_STONE, false);
                 }
@@ -402,7 +467,8 @@ public final class InputHandler implements Listener {
         final ItemMeta meta = held.getItemMeta();
         final String screenIdRaw = meta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
         final Integer tileIndex = meta.getPersistentDataContainer().get(tileIndexKey, PersistentDataType.INTEGER);
-        if (screenIdRaw == null || tileIndex == null || tileIndex != 0) {
+        final Byte autoFillEnabled = meta.getPersistentDataContainer().get(autofillKey, PersistentDataType.BYTE);
+        if (screenIdRaw == null || tileIndex == null || tileIndex != 0 || autoFillEnabled == null || autoFillEnabled != (byte) 1) {
             return Optional.empty();
         }
 
@@ -457,6 +523,79 @@ public final class InputHandler implements Listener {
         } catch (final IllegalArgumentException ignored) {
             return Particle.END_ROD;
         }
+    }
+
+    private Optional<Screen> resolveScreenFromFrame(final Player player, final ItemFrame frame) {
+        final ItemStack displayed = frame.getItem();
+        if (displayed != null && displayed.hasItemMeta()) {
+            final ItemMeta displayedMeta = displayed.getItemMeta();
+            if (displayedMeta != null) {
+                final String sid = displayedMeta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
+                if (sid != null) {
+                    try {
+                        final Optional<Screen> byMap = plugin.getScreenManager().getScreen(UUID.fromString(sid));
+                        if (byMap.isPresent()) {
+                            return byMap;
+                        }
+                    } catch (final IllegalArgumentException ignored) {
+                        // Ignore invalid uuid and fallback.
+                    }
+                }
+            }
+        }
+
+        return plugin.getScreenManager().getSelected(player.getUniqueId());
+    }
+
+    private Optional<ToolAction> resolveToolAction(final ItemStack held) {
+        if (matchesTool(held, "pointer", "items.pointer", Material.FEATHER)) {
+            return Optional.of(ToolAction.POINTER);
+        }
+        if (matchesTool(held, "back", "items.back", Material.BOW)) {
+            return Optional.of(ToolAction.BACK);
+        }
+        if (matchesTool(held, "forward", "items.forward", Material.ARROW)) {
+            return Optional.of(ToolAction.FORWARD);
+        }
+        if (matchesTool(held, "reload", "items.reload", Material.COMPASS)) {
+            return Optional.of(ToolAction.RELOAD);
+        }
+        if (matchesTool(held, "scroll-up", "items.scroll-up", Material.SLIME_BALL)) {
+            return Optional.of(ToolAction.SCROLL_UP);
+        }
+        if (matchesTool(held, "scroll-down", "items.scroll-down", Material.MAGMA_CREAM)) {
+            return Optional.of(ToolAction.SCROLL_DOWN);
+        }
+        if (matchesTool(held, "url-bar", "items.url-bar", Material.WRITABLE_BOOK)) {
+            return Optional.of(ToolAction.URL_BAR);
+        }
+        return Optional.empty();
+    }
+
+    private void executeToolAction(final Player player, final Screen screen, final ToolAction action) {
+        switch (action) {
+            case POINTER -> {
+                final int x = screen.getWidth() * 64;
+                final int y = screen.getHeight() * 64;
+                plugin.getBrowserIPCClient().sendMouseClick(screen.getId(), x, y, "left");
+            }
+            case BACK -> plugin.getBrowserIPCClient().sendGoBack(screen.getId());
+            case FORWARD -> plugin.getBrowserIPCClient().sendGoForward(screen.getId());
+            case RELOAD -> plugin.getBrowserIPCClient().sendReload(screen.getId());
+            case SCROLL_UP -> plugin.getBrowserIPCClient().sendScroll(screen.getId(), -300);
+            case SCROLL_DOWN -> plugin.getBrowserIPCClient().sendScroll(screen.getId(), 300);
+            case URL_BAR -> openUrlInput(player, screen);
+        }
+    }
+
+    private enum ToolAction {
+        POINTER,
+        BACK,
+        FORWARD,
+        RELOAD,
+        SCROLL_UP,
+        SCROLL_DOWN,
+        URL_BAR
     }
 
     private ItemStack createScreenMapItem(final Screen screen, final int tileIndex) {

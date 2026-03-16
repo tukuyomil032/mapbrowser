@@ -49,6 +49,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
     private final MapBrowserPlugin plugin;
     private final NamespacedKey toolKey;
     private final NamespacedKey menuActionKey;
+    private final NamespacedKey screenIdKey;
+    private final NamespacedKey tileIndexKey;
+    private final NamespacedKey autofillKey;
 
     /**
      * Creates command handler.
@@ -57,6 +60,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         this.plugin = plugin;
         this.toolKey = new NamespacedKey(plugin, "tool");
         this.menuActionKey = new NamespacedKey(plugin, "menu-action");
+        this.screenIdKey = new NamespacedKey(plugin, "screen-id");
+        this.tileIndexKey = new NamespacedKey(plugin, "tile-index");
+        this.autofillKey = new NamespacedKey(plugin, "autofill-enabled");
     }
 
     /**
@@ -69,7 +75,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
         if (args.length == 0) {
             sendHeader(sender, "MAPBROWSER COMMANDS");
-            sendInfo(sender, "/mb create <w> <h> [name]");
+            sendInfo(sender, "/mb create <w> <h> [name] [--autofill]");
             sendInfo(sender, "/mb menu|gui");
             sendInfo(sender, "/mb select <screen-id|screen-name>");
             sendInfo(sender, "/mb list, /mb info, /mb delete [screen], /mb exit");
@@ -131,6 +137,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if (args.length == 3 && "create".equalsIgnoreCase(args[0])) {
             return rangeValues(plugin.getConfig().getInt("screen.max-height", 8));
         }
+        if (args.length >= 4 && "create".equalsIgnoreCase(args[0])) {
+            return List.of("--autofill");
+        }
         if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "refill".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]))) {
             return screenNameSuggestions();
         }
@@ -179,7 +188,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length < 3) {
-            sendError(sender, "Usage: /mb create <w> <h> [name]");
+            sendError(sender, "Usage: /mb create <w> <h> [name] [--autofill]");
             return true;
         }
 
@@ -200,7 +209,18 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        final String name = args.length >= 4 ? String.join(" ", Arrays.copyOfRange(args, 3, args.length)) : "screen-" + System.currentTimeMillis();
+        boolean autoFillEnabled = false;
+        final ArrayList<String> nameParts = new ArrayList<>();
+        for (int i = 3; i < args.length; i++) {
+            final String token = args[i];
+            if ("--autofill".equalsIgnoreCase(token)) {
+                autoFillEnabled = true;
+                continue;
+            }
+            nameParts.add(token);
+        }
+
+        final String name = nameParts.isEmpty() ? "screen-" + System.currentTimeMillis() : String.join(" ", nameParts);
         final boolean duplicateName = plugin.getScreenManager().getAllScreens().stream()
             .anyMatch(screen -> screen.getName().equalsIgnoreCase(name));
         if (duplicateName) {
@@ -209,15 +229,17 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final Screen screen = plugin.getScreenManager().createScreen(player, BlockFace.NORTH, width, height, name);
+        plugin.getScreenManager().setSelected(player.getUniqueId(), screen.getId());
         plugin.getBrowserIPCClient().sendOpen(screen.getId(), width, height, screen.getFps());
-        final MapDeliverySummary summary = giveScreenMaps(player, screen);
+        final MapDeliverySummary summary = giveScreenMaps(player, screen, autoFillEnabled);
 
         sendHeader(sender, "SCREEN CREATED");
         sendOk(sender, "Name: " + screen.getName());
         sendInfo(sender, "ID: " + screen.getId());
         sendInfo(sender, "Size: " + width + "x" + height + " maps");
         sendInfo(sender, "Map total: " + summary.totalMaps() + " (direct=" + summary.directMaps() + ", bundles=" + summary.bundleBoxes() + ")");
-        sendInfo(sender, "Starter frame given: place 1 frame + 1 starter map, rest auto-fills.");
+        sendInfo(sender, "Autofill: " + (autoFillEnabled ? "enabled" : "disabled") + " (use --autofill to enable)");
+        sendInfo(sender, "Starter frame given: place 1 frame + starter map.");
         sendInfo(sender, "Use /mb select " + screen.getName() + " to re-select later.");
         sendInfo(sender, "Placement guide: " + (width * height) + " item frames, no map rotation.");
         sendInfo(sender, "Tile order: left->right, then top->bottom.");
@@ -519,8 +541,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         final Screen screen = target.get();
         final int[] mapIds = screen.getMapIds();
         final boolean[] hasTile = new boolean[mapIds.length];
-        final NamespacedKey screenKey = new NamespacedKey(plugin, "screen-id");
-        final NamespacedKey tileKey = new NamespacedKey(plugin, "tile-index");
+        final byte autoFillFlag = detectAutoFillPreference(player, screen);
 
         for (final ItemStack stack : player.getInventory().getContents()) {
             if (stack == null || stack.getType() != Material.FILLED_MAP || !stack.hasItemMeta()) {
@@ -529,8 +550,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             if (!(stack.getItemMeta() instanceof MapMeta meta)) {
                 continue;
             }
-            final String sid = meta.getPersistentDataContainer().get(screenKey, PersistentDataType.STRING);
-            final Integer idx = meta.getPersistentDataContainer().get(tileKey, PersistentDataType.INTEGER);
+            final String sid = meta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
+            final Integer idx = meta.getPersistentDataContainer().get(tileIndexKey, PersistentDataType.INTEGER);
             if (sid == null || idx == null || !sid.equals(screen.getId().toString())) {
                 continue;
             }
@@ -544,7 +565,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             if (hasTile[i]) {
                 continue;
             }
-            giveItemOrDrop(player, createScreenMapItem(screen, i));
+            giveItemOrDrop(player, createScreenMapItem(screen, i, autoFillFlag));
             missing++;
         }
 
@@ -601,7 +622,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             plugin.getBrowserIPCClient().sendNavigate(resized.get().getId(), resized.get().getCurrentUrl());
         }
 
-        final MapDeliverySummary summary = giveScreenMaps(player, resized.get());
+        final MapDeliverySummary summary = giveScreenMaps(player, resized.get(), detectAutoFillPreference(player, resized.get()) == (byte) 1);
         sendOk(sender, "Screen resized to " + width + "x" + height + ".");
         sendInfo(sender, "Map total: " + summary.totalMaps() + " (direct=" + summary.directMaps() + ", bundles=" + summary.bundleBoxes() + ")");
         return true;
@@ -799,20 +820,21 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         return true;
     }
 
-    private MapDeliverySummary giveScreenMaps(final Player player, final Screen screen) {
+    private MapDeliverySummary giveScreenMaps(final Player player, final Screen screen, final boolean autoFillEnabled) {
         final int totalMaps = screen.getMapIds().length;
         int directMaps = 0;
         int bundleBoxes = 0;
+        final byte autoFillFlag = autoFillEnabled ? (byte) 1 : (byte) 0;
 
         giveItemOrDrop(player, createStarterFrameItem(screen));
         if (totalMaps > 0) {
-            giveItemOrDrop(player, createScreenMapItem(screen, 0));
+            giveItemOrDrop(player, createScreenMapItem(screen, 0, autoFillFlag));
             directMaps++;
         }
 
         if (totalMaps <= 36) {
             for (int index = 1; index < totalMaps; index++) {
-                giveItemOrDrop(player, createScreenMapItem(screen, index));
+                giveItemOrDrop(player, createScreenMapItem(screen, index, autoFillFlag));
                 directMaps++;
             }
             return new MapDeliverySummary(totalMaps, directMaps, bundleBoxes);
@@ -821,7 +843,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         int index = 1;
         while (index < totalMaps) {
             final int endExclusive = Math.min(index + 27, totalMaps);
-            giveItemOrDrop(player, createMapBundleBox(screen, index, endExclusive));
+            giveItemOrDrop(player, createMapBundleBox(screen, index, endExclusive, autoFillFlag));
             bundleBoxes++;
             index = endExclusive;
         }
@@ -829,7 +851,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         return new MapDeliverySummary(totalMaps, directMaps, bundleBoxes);
     }
 
-    private ItemStack createScreenMapItem(final Screen screen, final int tileIndex) {
+    private ItemStack createScreenMapItem(final Screen screen, final int tileIndex, final byte autoFillFlag) {
         final int[] mapIds = screen.getMapIds();
         final ItemStack mapItem = new ItemStack(Material.FILLED_MAP, 1);
         if (!(mapItem.getItemMeta() instanceof MapMeta meta)) {
@@ -849,8 +871,13 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 Component.text("Tile: " + col + "," + row + " / " + screen.getWidth() + "x" + screen.getHeight(), NamedTextColor.DARK_GRAY),
                 Component.text("ID: " + mapId, NamedTextColor.DARK_GRAY)
         ));
-        meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "screen-id"), PersistentDataType.STRING, screen.getId().toString());
-        meta.getPersistentDataContainer().set(new NamespacedKey(plugin, "tile-index"), PersistentDataType.INTEGER, tileIndex);
+        meta.getPersistentDataContainer().set(screenIdKey, PersistentDataType.STRING, screen.getId().toString());
+        meta.getPersistentDataContainer().set(tileIndexKey, PersistentDataType.INTEGER, tileIndex);
+        if (autoFillFlag == (byte) 1) {
+            meta.getPersistentDataContainer().set(autofillKey, PersistentDataType.BYTE, (byte) 1);
+        } else {
+            meta.getPersistentDataContainer().remove(autofillKey);
+        }
         mapItem.setItemMeta(meta);
         return mapItem;
     }
@@ -869,7 +896,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         return frame;
     }
 
-    private ItemStack createMapBundleBox(final Screen screen, final int startInclusive, final int endExclusive) {
+    private ItemStack createMapBundleBox(final Screen screen, final int startInclusive, final int endExclusive, final byte autoFillFlag) {
         final ItemStack shulkerItem = new ItemStack(Material.SHULKER_BOX, 1);
         if (!(shulkerItem.getItemMeta() instanceof BlockStateMeta blockMeta)) {
             return shulkerItem;
@@ -880,7 +907,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         int slot = 0;
         for (int i = startInclusive; i < endExclusive; i++) {
-            shulker.getInventory().setItem(slot++, createScreenMapItem(screen, i));
+            shulker.getInventory().setItem(slot++, createScreenMapItem(screen, i, autoFillFlag));
         }
         blockMeta.setBlockState(shulker);
         blockMeta.displayName(Component.text("MapBrowser Map Bundle", NamedTextColor.LIGHT_PURPLE));
@@ -906,6 +933,24 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             values.add(String.valueOf(i));
         }
         return values;
+    }
+
+    private byte detectAutoFillPreference(final Player player, final Screen screen) {
+        for (final ItemStack stack : player.getInventory().getContents()) {
+            if (stack == null || stack.getType() != Material.FILLED_MAP || !stack.hasItemMeta()) {
+                continue;
+            }
+            if (!(stack.getItemMeta() instanceof MapMeta meta)) {
+                continue;
+            }
+            final String sid = meta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
+            if (!screen.getId().toString().equals(sid)) {
+                continue;
+            }
+            final Byte enabled = meta.getPersistentDataContainer().get(autofillKey, PersistentDataType.BYTE);
+            return enabled != null && enabled == (byte) 1 ? (byte) 1 : (byte) 0;
+        }
+        return 0;
     }
 
     private record MapDeliverySummary(int totalMaps, int directMaps, int bundleBoxes) {
