@@ -19,6 +19,8 @@ export class PageController {
 	private readonly onFrame: (result: ProcessResult) => void;
 	private readonly onUrlChanged: (url: string) => void;
 	private readonly onPageLoaded: () => void;
+	private processingFrame = false;
+	private pendingFrame: Buffer | null = null;
 
 	public constructor(
 		widthMaps: number,
@@ -133,31 +135,56 @@ export class PageController {
 		this.cdp.on(
 			"Page.screencastFrame",
 			async (event: { data: string; sessionId: number }) => {
+				await this.cdp?.send("Page.screencastFrameAck", {
+					sessionId: event.sessionId,
+				});
+
 				try {
 					const pngBuffer = Buffer.from(event.data, "base64");
-					const processed = await this.frameProcessor.process(
-						pngBuffer,
-						this.widthMaps,
-						this.heightMaps,
-					);
-					if (processed.type !== "SKIP") {
-						this.onFrame(processed);
+					if (this.processingFrame) {
+						// Keep only the newest frame while processing to avoid queue buildup.
+						this.pendingFrame = pngBuffer;
+						return;
 					}
+					await this.processFrame(pngBuffer);
 				} catch (error) {
 					logger.error("Failed to process screencast frame", error);
-				} finally {
-					await this.cdp?.send("Page.screencastFrameAck", {
-						sessionId: event.sessionId,
-					});
 				}
 			},
 		);
 
 		await this.cdp.send("Page.startScreencast", {
-			format: "png",
+			format: "jpeg",
+			quality: 65,
 			everyNthFrame,
 			maxWidth: this.widthMaps * 128,
 			maxHeight: this.heightMaps * 128,
 		});
+	}
+
+	private async processFrame(initialBuffer: Buffer): Promise<void> {
+		this.processingFrame = true;
+		let current = initialBuffer;
+		try {
+			while (true) {
+				const processed = await this.frameProcessor.process(
+					current,
+					this.widthMaps,
+					this.heightMaps,
+				);
+				if (processed.type !== "SKIP") {
+					this.onFrame(processed);
+				}
+
+				const next = this.pendingFrame;
+				if (!next) {
+					break;
+				}
+				this.pendingFrame = null;
+				current = next;
+			}
+		} finally {
+			this.processingFrame = false;
+		}
 	}
 }
