@@ -83,6 +83,9 @@ export class IPCServer {
 			case "SET_FPS":
 				await this.pool.setFps(msg.screenId, msg.fps);
 				return;
+			case "TEXT_INPUT":
+				await this.pool.typeText(msg.screenId, msg.text);
+				return;
 			default:
 				throw new Error("Unsupported type");
 		}

@@ -111,8 +111,22 @@ export class PageController {
 		await this.startCapture();
 	}
 
+	public async typeText(text: string): Promise<void> {
+		if (!this.page) return;
+		await this.page.keyboard.type(text);
+	}
+
 	private async startCapture(): Promise<void> {
 		if (!this.page) return;
+		if (this.cdp) {
+			try {
+				await this.cdp.send("Page.stopScreencast");
+			} catch (error) {
+				logger.debug("stopScreencast skipped", error);
+			}
+			await this.cdp.detach().catch(() => undefined);
+			this.cdp = null;
+		}
 		this.cdp = await this.page.context().newCDPSession(this.page);
 		const everyNthFrame = Math.max(1, Math.floor(60 / this.fps));
 

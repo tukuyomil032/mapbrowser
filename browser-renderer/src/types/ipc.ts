@@ -33,6 +33,11 @@ export type JavaToNodeMessage =
 			type: "SET_FPS";
 			screenId: string;
 			fps: number;
+	  }
+	| {
+			type: "TEXT_INPUT";
+			screenId: string;
+			text: string;
 	  };
 
 export type NodeToJavaMessage =

@@ -81,8 +81,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             sendInfo(sender, "/mb list, /mb info, /mb delete [screen], /mb exit");
             sendInfo(sender, "/mb refill [screen], /mb resize <screen> <w> <h>");
             sendInfo(sender, "/mb config simulate_particle <end_rod|flame>");
-            sendInfo(sender, "/mb open <url>, /mb back, /mb forward, /mb reload, /mb fps <value>");
-            sendInfo(sender, "/mb give <pointer|back|forward|reload|url-bar|scroll-up|scroll-down>");
+            sendInfo(sender, "/mb config language <en|ja>");
+            sendInfo(sender, "/mb open <url>, /mb type <text>, /mb back, /mb forward, /mb reload, /mb fps <value>");
+            sendInfo(sender, "/mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|scroll>");
             sendInfo(sender, "/mb admin status|deps|stop <screenId>");
             sendLine(sender);
             return true;
@@ -94,6 +95,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "menu", "gui" -> handleMenu(sender);
             case "select" -> handleSelect(sender, args);
             case "open" -> handleOpen(sender, args);
+            case "type" -> handleType(sender, args);
             case "back" -> handleSimpleBrowserCommand(sender, "GO_BACK");
             case "forward" -> handleSimpleBrowserCommand(sender, "GO_FORWARD");
             case "reload" -> handleSimpleBrowserCommand(sender, "RELOAD");
@@ -129,7 +131,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             final String[] args
     ) {
         if (args.length == 1) {
-            return Arrays.asList("create", "menu", "gui", "select", "open", "back", "forward", "reload", "fps", "list", "info", "delete", "refill", "resize", "config", "give", "exit", "admin");
+            return Arrays.asList("create", "menu", "gui", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "delete", "refill", "resize", "config", "give", "exit", "admin");
         }
         if (args.length == 2 && "create".equalsIgnoreCase(args[0])) {
             return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
@@ -150,10 +152,13 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return rangeValues(plugin.getConfig().getInt("screen.max-height", 8));
         }
         if (args.length == 2 && "config".equalsIgnoreCase(args[0])) {
-            return List.of("simulate_particle");
+            return List.of("simulate_particle", "language");
         }
         if (args.length == 3 && "config".equalsIgnoreCase(args[0]) && "simulate_particle".equalsIgnoreCase(args[1])) {
             return List.of("end_rod", "flame");
+        }
+        if (args.length == 3 && "config".equalsIgnoreCase(args[0]) && "language".equalsIgnoreCase(args[1])) {
+            return List.of("en", "ja");
         }
         if (args.length == 2 && "select".equalsIgnoreCase(args[0])) {
             final List<String> names = plugin.getScreenManager().getAllScreens().stream()
@@ -167,7 +172,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return values;
         }
         if (args.length == 2 && "give".equalsIgnoreCase(args[0])) {
-            return Arrays.asList("pointer", "back", "forward", "reload", "url-bar", "scroll-up", "scroll-down");
+            return Arrays.asList("pointer-left", "pointer-right", "pointer", "back", "forward", "reload", "url-bar", "text-input", "scroll", "scroll-up", "scroll-down");
         }
         if (args.length == 2 && "admin".equalsIgnoreCase(args[0])) {
             return List.of("status", "deps", "stop");
@@ -267,13 +272,14 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         menu.setItem(15, createMenuItem(Material.COMPASS, "Reload", "reload", "Reload selected page"));
         menu.setItem(16, createMenuItem(Material.CLOCK, "Info", "info", "Show selected screen info"));
 
-        menu.setItem(19, createMenuItem(Material.FEATHER, "Give Pointer", "give-pointer", "Click helper"));
-        menu.setItem(20, createMenuItem(Material.BOW, "Give Back", "give-back", "Browser back"));
-        menu.setItem(21, createMenuItem(Material.ARROW, "Give Forward", "give-forward", "Browser forward"));
-        menu.setItem(22, createMenuItem(Material.COMPASS, "Give Reload", "give-reload", "Browser reload"));
-        menu.setItem(23, createMenuItem(Material.SLIME_BALL, "Give Scroll Up", "give-scroll-up", "Scroll up"));
-        menu.setItem(24, createMenuItem(Material.MAGMA_CREAM, "Give Scroll Down", "give-scroll-down", "Scroll down"));
-        menu.setItem(25, createMenuItem(Material.WRITABLE_BOOK, "Give URL Bar", "give-url-bar", "Anvil URL input"));
+        menu.setItem(19, createMenuItem(Material.FEATHER, "Give Left Click", "give-pointer-left", "Click position: left click"));
+        menu.setItem(20, createMenuItem(Material.FLINT, "Give Right Click", "give-pointer-right", "Click position: right click"));
+        menu.setItem(21, createMenuItem(Material.MAGMA_CREAM, "Give Scroll", "give-scroll", "Right-click down / Shift right-click up"));
+        menu.setItem(22, createMenuItem(Material.WRITABLE_BOOK, "Give Text Input", "give-text-input", "Open text input dialog"));
+        menu.setItem(23, createMenuItem(Material.WRITABLE_BOOK, "Give URL Bar", "give-url-bar", "Open URL input dialog"));
+        menu.setItem(24, createMenuItem(Material.BOW, "Give Back", "give-back", "Browser back"));
+        menu.setItem(25, createMenuItem(Material.ARROW, "Give Forward", "give-forward", "Browser forward"));
+        menu.setItem(26, createMenuItem(Material.COMPASS, "Give Reload", "give-reload", "Browser reload"));
 
         menu.setItem(31, createMenuItem(Material.REDSTONE, "FPS 5", "fps-5", "Low load mode"));
         menu.setItem(32, createMenuItem(Material.GLOWSTONE_DUST, "FPS 10", "fps-10", "Balanced mode"));
@@ -376,6 +382,40 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         return true;
     }
 
+    private boolean handleType(final CommandSender sender, final String[] args) {
+        if (sender == null) {
+            return true;
+        }
+        if (!(sender instanceof Player player)) {
+            sendError(sender, "Player only command.");
+            return true;
+        }
+        if (!plugin.getPermissionManager().has(sender, "mapbrowser.use")) {
+            sendError(sender, "No permission.");
+            return true;
+        }
+        if (args.length < 2) {
+            sendError(sender, "Usage: /mb type <text>");
+            return true;
+        }
+
+        final Optional<Screen> selected = plugin.getScreenManager().getSelected(player.getUniqueId());
+        if (selected.isEmpty()) {
+            sendError(sender, "No selected screen.");
+            return true;
+        }
+
+        final String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length)).trim();
+        if (text.isBlank()) {
+            sendError(sender, "Text is empty.");
+            return true;
+        }
+
+        plugin.getBrowserIPCClient().sendTextInput(selected.get().getId(), text);
+        sendOk(sender, "Typed text into browser.");
+        return true;
+    }
+
     private boolean handleSimpleBrowserCommand(final CommandSender sender, final String type) {
         if (sender == null) {
             return true;
@@ -433,7 +473,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        final int maxFps = plugin.getConfig().getInt("screen.max-fps", 20);
+        final int maxFps = plugin.getConfig().getInt("screen.max-fps", 30);
         if (fps < 1 || fps > maxFps) {
             sendError(sender, "FPS must be 1.." + maxFps);
             return true;
@@ -634,9 +674,22 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length < 3) {
-            sendError(sender, "Usage: /mb config simulate_particle <end_rod|flame>");
+            sendError(sender, "Usage: /mb config <simulate_particle|language> <value>");
             return true;
         }
+
+        if ("language".equalsIgnoreCase(args[1])) {
+            final String language = args[2].toLowerCase(Locale.ROOT);
+            if (!"en".equals(language) && !"ja".equals(language)) {
+                sendError(sender, "Value must be en or ja.");
+                return true;
+            }
+            plugin.getConfig().set("ui.language", language);
+            plugin.saveConfig();
+            sendOk(sender, "language updated: " + language);
+            return true;
+        }
+
         if (!"simulate_particle".equalsIgnoreCase(args[1])) {
             sendError(sender, "Unknown config key: " + args[1]);
             return true;
@@ -703,17 +756,21 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb give <pointer|back|forward|reload|url-bar|scroll-up|scroll-down>");
+            sendError(sender, "Usage: /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|scroll>");
             return true;
         }
 
         final String key = java.util.Objects.requireNonNull(args[1], "item type").toLowerCase(Locale.ROOT);
         final String path = switch (key) {
+            case "pointer-left" -> "items.pointer-left";
+            case "pointer-right" -> "items.pointer-right";
             case "pointer" -> "items.pointer";
             case "back" -> "items.back";
             case "forward" -> "items.forward";
             case "reload" -> "items.reload";
             case "url-bar" -> "items.url-bar";
+            case "text-input" -> "items.text-input";
+            case "scroll" -> "items.scroll";
             case "scroll-up" -> "items.scroll-up";
             case "scroll-down" -> "items.scroll-down";
             default -> null;
@@ -724,7 +781,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        final String materialName = Objects.requireNonNullElse(plugin.getConfig().getString(path, "FEATHER"), "FEATHER");
+        final Material fallback = fallbackMaterialForTool(key);
+        final String materialName = Objects.requireNonNullElse(plugin.getConfig().getString(path, fallback.name()), fallback.name());
         final Material material;
         try {
             material = Material.valueOf(materialName.toUpperCase(Locale.ROOT));
@@ -735,9 +793,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final ItemStack item = new ItemStack(material, 1);
         final ItemMeta meta = java.util.Objects.requireNonNull(item.getItemMeta(), "ItemMeta unavailable");
-        meta.displayName(Component.text("MapBrowser " + material.name(), NamedTextColor.GOLD));
+    final String language = resolveLanguage();
+    meta.displayName(Component.text(localizedToolName(language, key), NamedTextColor.GOLD));
         meta.lore(List.of(
-                Component.text("Control item for browser screen", NamedTextColor.GRAY),
+        Component.text(localizedToolDescription(language, key), NamedTextColor.GRAY),
                 Component.text("Type: " + key, NamedTextColor.DARK_GRAY)
         ));
         meta.getPersistentDataContainer().set(
@@ -754,6 +813,88 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
         sendOk(sender, "Given item: " + key + " (" + material.name() + ")");
         return true;
+    }
+
+    private Material fallbackMaterialForTool(final String key) {
+        return switch (key) {
+            case "pointer-left", "pointer" -> Material.FEATHER;
+            case "pointer-right" -> Material.FLINT;
+            case "back" -> Material.BOW;
+            case "forward" -> Material.ARROW;
+            case "reload" -> Material.COMPASS;
+            case "url-bar" -> Material.WRITABLE_BOOK;
+            case "text-input" -> Material.WRITABLE_BOOK;
+            case "scroll", "scroll-down" -> Material.MAGMA_CREAM;
+            case "scroll-up" -> Material.SLIME_BALL;
+            default -> Material.FEATHER;
+        };
+    }
+
+    private String resolveLanguage() {
+        final String configured = plugin.getConfig().getString("ui.language", "en");
+        if (configured == null) {
+            return "en";
+        }
+        final String normalized = configured.toLowerCase(Locale.ROOT);
+        return "ja".equals(normalized) ? "ja" : "en";
+    }
+
+    private String localizedToolName(final String language, final String key) {
+        if ("ja".equals(language)) {
+            return switch (key) {
+                case "pointer-left", "pointer" -> "ブラウザ左クリック";
+                case "pointer-right" -> "ブラウザ右クリック";
+                case "back" -> "戻る";
+                case "forward" -> "進む";
+                case "reload" -> "リロード";
+                case "url-bar" -> "URL入力";
+                case "text-input" -> "テキスト入力";
+                case "scroll", "scroll-up", "scroll-down" -> "スクロール";
+                default -> "ブラウザ操作";
+            };
+        }
+        return switch (key) {
+            case "pointer-left", "pointer" -> "Browser Left Click";
+            case "pointer-right" -> "Browser Right Click";
+            case "back" -> "Browser Back";
+            case "forward" -> "Browser Forward";
+            case "reload" -> "Browser Reload";
+            case "url-bar" -> "Browser URL Bar";
+            case "text-input" -> "Browser Text Input";
+            case "scroll", "scroll-up", "scroll-down" -> "Browser Scroll";
+            default -> "Browser Control";
+        };
+    }
+
+    private String localizedToolDescription(final String language, final String key) {
+        if ("ja".equals(language)) {
+            return switch (key) {
+                case "pointer-left", "pointer" -> "選択中スクリーンのクリック位置へ左クリックを送信";
+                case "pointer-right" -> "選択中スクリーンのクリック位置へ右クリックを送信";
+                case "back" -> "選択中スクリーンで戻る";
+                case "forward" -> "選択中スクリーンで進む";
+                case "reload" -> "選択中スクリーンを再読み込み";
+                case "url-bar" -> "右クリックでURL入力を開く";
+                case "text-input" -> "右クリックで文字入力を開く";
+                case "scroll" -> "右クリックで下へ、Shift+右クリックで上へスクロール";
+                case "scroll-up" -> "右クリックで上へスクロール";
+                case "scroll-down" -> "右クリックで下へスクロール";
+                default -> "選択中スクリーンに対する操作アイテム";
+            };
+        }
+        return switch (key) {
+            case "pointer-left", "pointer" -> "Right-click a selected screen frame to send left click";
+            case "pointer-right" -> "Right-click a selected screen frame to send right click";
+            case "back" -> "Go back on selected screen";
+            case "forward" -> "Go forward on selected screen";
+            case "reload" -> "Reload selected screen";
+            case "url-bar" -> "Right-click to open URL input";
+            case "text-input" -> "Right-click to open text input";
+            case "scroll" -> "Right-click scroll down, Shift+right-click scroll up";
+            case "scroll-up" -> "Right-click to scroll up";
+            case "scroll-down" -> "Right-click to scroll down";
+            default -> "Control item for selected browser screen";
+        };
     }
 
     private boolean handleAdmin(final CommandSender sender, final String[] args) {
@@ -1015,10 +1156,13 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "open-url" -> "mb give url-bar";
             case "reload" -> "mb reload";
             case "info" -> "mb info";
-            case "give-pointer" -> "mb give pointer";
+            case "give-pointer", "give-pointer-left" -> "mb give pointer-left";
+            case "give-pointer-right" -> "mb give pointer-right";
             case "give-back" -> "mb give back";
             case "give-forward" -> "mb give forward";
             case "give-reload" -> "mb give reload";
+            case "give-text-input" -> "mb give text-input";
+            case "give-scroll" -> "mb give scroll";
             case "give-scroll-up" -> "mb give scroll-up";
             case "give-scroll-down" -> "mb give scroll-down";
             case "give-url-bar" -> "mb give url-bar";

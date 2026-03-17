@@ -15,6 +15,7 @@
 ## ブラウザ操作
 
 - /mb open <url>
+- /mb type <text>
 - /mb back
 - /mb forward
 - /mb reload
@@ -23,7 +24,12 @@
 
 ## アイテム付与
 
-- /mb give <pointer|back|forward|reload|url-bar|scroll-up|scroll-down>
+- /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|scroll>
+
+## 設定
+
+- /mb config simulate_particle <end_rod|flame>
+- /mb config language <en|ja>
 
 ## 管理系
 

@@ -150,6 +150,15 @@ public final class BrowserIPCClient {
     }
 
     /**
+     * Sends text input command.
+     */
+    public void sendTextInput(final UUID screenId, final String text) {
+        final JsonObject obj = IPCMessage.screenMessage("TEXT_INPUT", screenId);
+        obj.addProperty("text", text);
+        sendJson(obj);
+    }
+
+    /**
      * Returns current websocket connectivity state.
      */
     public boolean isConnected() {

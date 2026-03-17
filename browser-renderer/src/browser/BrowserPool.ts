@@ -80,6 +80,10 @@ export class BrowserPool {
 		await this.pages.get(screenId)?.setFps(fps);
 	}
 
+	public async typeText(screenId: string, text: string): Promise<void> {
+		await this.pages.get(screenId)?.typeText(text);
+	}
+
 	public async shutdown(): Promise<void> {
 		for (const [screenId, page] of this.pages.entries()) {
 			await page.close();

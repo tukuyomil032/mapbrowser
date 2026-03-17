@@ -25,6 +25,7 @@ import org.bukkit.event.entity.EntityDamageByEntityEvent;
 import org.bukkit.event.inventory.InventoryClickEvent;
 import org.bukkit.event.inventory.InventoryCloseEvent;
 import org.bukkit.event.inventory.InventoryType;
+import org.bukkit.event.player.PlayerInteractAtEntityEvent;
 import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
@@ -34,9 +35,12 @@ import org.bukkit.inventory.meta.ItemMeta;
 import org.bukkit.inventory.meta.MapMeta;
 import org.bukkit.map.MapView;
 import org.bukkit.persistence.PersistentDataType;
+import org.bukkit.util.BoundingBox;
+import org.bukkit.util.Vector;
 
 import com.tukuyomil032.mapbrowser.MapBrowserPlugin;
 import com.tukuyomil032.mapbrowser.screen.Screen;
+import com.tukuyomil032.mapbrowser.util.RaycastUtil;
 import com.tukuyomil032.mapbrowser.util.UrlSecurityValidator;
 
 import net.kyori.adventure.text.Component;
@@ -47,7 +51,7 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
  */
 public final class InputHandler implements Listener {
     private final MapBrowserPlugin plugin;
-    private final Map<UUID, UUID> anvilSessions;
+    private final Map<UUID, AnvilSession> anvilSessions;
     private final HashSet<UUID> assembledScreens;
     private final NamespacedKey toolKey;
     private final NamespacedKey screenIdKey;
@@ -80,12 +84,13 @@ public final class InputHandler implements Listener {
         final ItemStack previewHeld = previewPlayer.getInventory().getItemInMainHand();
         final Optional<Screen> previewScreen = resolveStarterMapScreen(previewHeld);
         if (previewScreen.isPresent() && event.getAction() == Action.RIGHT_CLICK_BLOCK && event.getClickedBlock() != null) {
+            final var clickedBlock = java.util.Objects.requireNonNull(event.getClickedBlock(), "clicked block");
             final BlockFace clickedFace = event.getBlockFace();
             if (clickedFace == BlockFace.UP || clickedFace == BlockFace.DOWN) {
                 previewPlayer.sendMessage("Starter map preview works on wall faces only.");
                 return;
             }
-            showSimulationPreview(previewPlayer, previewScreen.get(), event.getClickedBlock().getLocation(), clickedFace);
+            showSimulationPreview(previewPlayer, previewScreen.get(), clickedBlock.getLocation(), clickedFace);
             event.setCancelled(true);
             return;
         }
@@ -102,14 +107,6 @@ public final class InputHandler implements Listener {
 
         final Screen screen = selected.get();
         final ItemStack heldItem = player.getInventory().getItemInMainHand();
-
-        if (matchesTool(heldItem, "pointer", "items.pointer", Material.FEATHER)) {
-            final int x = screen.getWidth() * 64;
-            final int y = screen.getHeight() * 64;
-            plugin.getBrowserIPCClient().sendMouseClick(screen.getId(), x, y, "left");
-            event.setCancelled(true);
-            return;
-        }
 
         if (matchesTool(heldItem, "back", "items.back", Material.BOW)) {
             plugin.getBrowserIPCClient().sendGoBack(screen.getId());
@@ -129,6 +126,13 @@ public final class InputHandler implements Listener {
             return;
         }
 
+        if (matchesTool(heldItem, "scroll", "items.scroll", Material.MAGMA_CREAM)) {
+            final int delta = player.isSneaking() ? -300 : 300;
+            plugin.getBrowserIPCClient().sendScroll(screen.getId(), delta);
+            event.setCancelled(true);
+            return;
+        }
+
         if (matchesTool(heldItem, "scroll-up", "items.scroll-up", Material.SLIME_BALL)) {
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), -300);
             event.setCancelled(true);
@@ -143,6 +147,12 @@ public final class InputHandler implements Listener {
 
         if (matchesTool(heldItem, "url-bar", "items.url-bar", Material.WRITABLE_BOOK)) {
             openUrlInput(player, screen);
+            event.setCancelled(true);
+            return;
+        }
+
+        if (matchesTool(heldItem, "text-input", "items.text-input", Material.WRITABLE_BOOK)) {
+            openTextInput(player, screen);
             event.setCancelled(true);
         }
     }
@@ -159,8 +169,8 @@ public final class InputHandler implements Listener {
             return;
         }
 
-        final UUID screenId = anvilSessions.get(player.getUniqueId());
-        if (screenId == null) {
+        final AnvilSession session = anvilSessions.get(player.getUniqueId());
+        if (session == null) {
             return;
         }
         if (event.getRawSlot() != 2) {
@@ -188,7 +198,7 @@ public final class InputHandler implements Listener {
             return;
         }
 
-        final Optional<Screen> target = plugin.getScreenManager().getScreen(screenId);
+        final Optional<Screen> target = plugin.getScreenManager().getScreen(session.screenId());
         if (target.isEmpty()) {
             player.sendMessage("Target screen not found.");
             player.closeInventory();
@@ -196,16 +206,20 @@ public final class InputHandler implements Listener {
         }
 
         final UrlSecurityValidator.ValidationResult validated = UrlSecurityValidator.validate(input.trim(), plugin.getConfig());
-        if (!validated.allowed()) {
-            player.sendMessage(validated.valueOrReason());
-            player.closeInventory();
-            return;
-        }
-
         final Screen screen = target.get();
-        screen.setCurrentUrl(validated.valueOrReason());
-        plugin.getBrowserIPCClient().sendNavigate(screen.getId(), validated.valueOrReason());
-        player.sendMessage("Navigating: " + validated.valueOrReason());
+        if (session.mode() == AnvilMode.URL) {
+            if (!validated.allowed()) {
+                player.sendMessage(validated.valueOrReason());
+                player.closeInventory();
+                return;
+            }
+            screen.setCurrentUrl(validated.valueOrReason());
+            plugin.getBrowserIPCClient().sendNavigate(screen.getId(), validated.valueOrReason());
+            player.sendMessage("Navigating: " + validated.valueOrReason());
+        } else {
+            plugin.getBrowserIPCClient().sendTextInput(screen.getId(), input);
+            player.sendMessage("Typed text into browser.");
+        }
         player.closeInventory();
     }
 
@@ -306,7 +320,48 @@ public final class InputHandler implements Listener {
             return;
         }
 
-        executeToolAction(event.getPlayer(), screen.get(), action.get());
+        if (action.get() == ToolAction.POINTER_LEFT || action.get() == ToolAction.POINTER_RIGHT) {
+            event.setCancelled(true);
+            return;
+        }
+
+        executeToolAction(event.getPlayer(), screen.get(), action.get(), null);
+        event.setCancelled(true);
+    }
+
+    /**
+     * Routes pointer actions with exact click coordinates on item frame.
+     */
+    @EventHandler
+    public void onToolFrameInteractAt(final PlayerInteractAtEntityEvent event) {
+        if (!(event.getRightClicked() instanceof ItemFrame frame)) {
+            return;
+        }
+
+        final ItemStack held = event.getPlayer().getInventory().getItemInMainHand();
+        final Optional<ToolAction> action = resolveToolAction(held);
+        if (action.isEmpty()) {
+            return;
+        }
+        if (action.get() != ToolAction.POINTER_LEFT && action.get() != ToolAction.POINTER_RIGHT) {
+            return;
+        }
+
+        final Optional<Screen> screen = resolveScreenFromFrame(event.getPlayer(), frame);
+        if (screen.isEmpty()) {
+            event.getPlayer().sendMessage("No selected screen. Use /mb select <screen>.");
+            event.setCancelled(true);
+            return;
+        }
+
+        final Optional<RaycastUtil.Vector2i> coords = resolveClickPosition(frame, screen.get(), event.getClickedPosition());
+        if (coords.isEmpty()) {
+            event.getPlayer().sendMessage("Could not resolve click position on frame.");
+            event.setCancelled(true);
+            return;
+        }
+
+        executeToolAction(event.getPlayer(), screen.get(), action.get(), coords.get());
         event.setCancelled(true);
     }
 
@@ -332,9 +387,6 @@ public final class InputHandler implements Listener {
             return;
         }
 
-        if (action.get() == ToolAction.POINTER) {
-            executeToolAction(player, screen.get(), action.get());
-        }
         event.setCancelled(true);
     }
 
@@ -347,9 +399,21 @@ public final class InputHandler implements Listener {
         meta.displayName(Component.text(trimmed));
         paper.setItemMeta(meta);
         anvil.setItem(0, paper);
-        anvilSessions.put(player.getUniqueId(), screen.getId());
+        anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.URL));
         player.openInventory(anvil);
         player.sendMessage("Enter URL and click result slot to confirm.");
+    }
+
+    private void openTextInput(final Player player, final Screen screen) {
+        final Inventory anvil = Bukkit.createInventory(player, InventoryType.ANVIL, Component.text("MapBrowser Text Input"));
+        final ItemStack paper = new ItemStack(Material.PAPER);
+        final ItemMeta meta = paper.getItemMeta();
+        meta.displayName(Component.text("Type text here"));
+        paper.setItemMeta(meta);
+        anvil.setItem(0, paper);
+        anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.TEXT));
+        player.openInventory(anvil);
+        player.sendMessage("Enter text and click result slot to type into browser.");
     }
 
     private boolean isConfigured(final Material held, final String path, final Material fallback) {
@@ -527,7 +591,7 @@ public final class InputHandler implements Listener {
 
     private Optional<Screen> resolveScreenFromFrame(final Player player, final ItemFrame frame) {
         final ItemStack displayed = frame.getItem();
-        if (displayed != null && displayed.hasItemMeta()) {
+        if (displayed.hasItemMeta()) {
             final ItemMeta displayedMeta = displayed.getItemMeta();
             if (displayedMeta != null) {
                 final String sid = displayedMeta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
@@ -548,8 +612,12 @@ public final class InputHandler implements Listener {
     }
 
     private Optional<ToolAction> resolveToolAction(final ItemStack held) {
-        if (matchesTool(held, "pointer", "items.pointer", Material.FEATHER)) {
-            return Optional.of(ToolAction.POINTER);
+        if (matchesTool(held, "pointer-left", "items.pointer-left", Material.FEATHER)
+                || matchesTool(held, "pointer", "items.pointer", Material.FEATHER)) {
+            return Optional.of(ToolAction.POINTER_LEFT);
+        }
+        if (matchesTool(held, "pointer-right", "items.pointer-right", Material.FLINT)) {
+            return Optional.of(ToolAction.POINTER_RIGHT);
         }
         if (matchesTool(held, "back", "items.back", Material.BOW)) {
             return Optional.of(ToolAction.BACK);
@@ -569,33 +637,122 @@ public final class InputHandler implements Listener {
         if (matchesTool(held, "url-bar", "items.url-bar", Material.WRITABLE_BOOK)) {
             return Optional.of(ToolAction.URL_BAR);
         }
+        if (matchesTool(held, "text-input", "items.text-input", Material.WRITABLE_BOOK)) {
+            return Optional.of(ToolAction.TEXT_INPUT);
+        }
+        if (matchesTool(held, "scroll", "items.scroll", Material.MAGMA_CREAM)) {
+            return Optional.of(ToolAction.SCROLL);
+        }
         return Optional.empty();
     }
 
-    private void executeToolAction(final Player player, final Screen screen, final ToolAction action) {
+    private void executeToolAction(
+            final Player player,
+            final Screen screen,
+            final ToolAction action,
+            final RaycastUtil.Vector2i clickPoint
+    ) {
         switch (action) {
-            case POINTER -> {
-                final int x = screen.getWidth() * 64;
-                final int y = screen.getHeight() * 64;
-                plugin.getBrowserIPCClient().sendMouseClick(screen.getId(), x, y, "left");
-            }
+            case POINTER_LEFT -> plugin.getBrowserIPCClient().sendMouseClick(screen.getId(), clickPoint.x(), clickPoint.y(), "left");
+            case POINTER_RIGHT -> plugin.getBrowserIPCClient().sendMouseClick(screen.getId(), clickPoint.x(), clickPoint.y(), "right");
             case BACK -> plugin.getBrowserIPCClient().sendGoBack(screen.getId());
             case FORWARD -> plugin.getBrowserIPCClient().sendGoForward(screen.getId());
             case RELOAD -> plugin.getBrowserIPCClient().sendReload(screen.getId());
             case SCROLL_UP -> plugin.getBrowserIPCClient().sendScroll(screen.getId(), -300);
             case SCROLL_DOWN -> plugin.getBrowserIPCClient().sendScroll(screen.getId(), 300);
             case URL_BAR -> openUrlInput(player, screen);
+            case TEXT_INPUT -> openTextInput(player, screen);
+            case SCROLL -> {
+                final int delta = player.isSneaking() ? -300 : 300;
+                plugin.getBrowserIPCClient().sendScroll(screen.getId(), delta);
+            }
         }
     }
 
+    private Optional<RaycastUtil.Vector2i> resolveClickPosition(
+            final ItemFrame frame,
+            final Screen screen,
+            final Vector clickedPosition
+    ) {
+        final Optional<Integer> tileIndex = resolveTileIndexFromFrame(frame);
+        if (tileIndex.isEmpty()) {
+            return Optional.empty();
+        }
+
+        final int frameIndex = tileIndex.get();
+        final int tileX = frameIndex % screen.getWidth();
+        final int tileY = frameIndex / screen.getWidth();
+        final Vector worldHit = frame.getLocation().toVector().add(clickedPosition);
+        final Vector local = normalizeFrameHit(frame, worldHit);
+        final RaycastUtil.Vector2i pixel = RaycastUtil.toBrowserCoords(local, 1, 1);
+        final int x = (tileX * 128) + pixel.x();
+        final int y = (tileY * 128) + pixel.y();
+        return Optional.of(new RaycastUtil.Vector2i(x, y));
+    }
+
+    private Vector normalizeFrameHit(final ItemFrame frame, final Vector worldHit) {
+        final BoundingBox box = frame.getBoundingBox();
+        final double nx = normalizeAxis(worldHit.getX(), box.getMinX(), box.getMaxX());
+        final double ny = normalizeAxis(worldHit.getY(), box.getMinY(), box.getMaxY());
+        final double nz = normalizeAxis(worldHit.getZ(), box.getMinZ(), box.getMaxZ());
+
+        final double u = switch (frame.getFacing()) {
+            case NORTH -> nx;
+            case SOUTH -> 1.0 - nx;
+            case EAST -> nz;
+            case WEST -> 1.0 - nz;
+            default -> nx;
+        };
+        final double v = 1.0 - ny;
+        return new Vector(clamp01(u), clamp01(v), 0.0);
+    }
+
+    private double normalizeAxis(final double value, final double min, final double max) {
+        if (max <= min) {
+            return 0.5;
+        }
+        return (value - min) / (max - min);
+    }
+
+    private double clamp01(final double value) {
+        return Math.max(0.0, Math.min(1.0, value));
+    }
+
+    private Optional<Integer> resolveTileIndexFromFrame(final ItemFrame frame) {
+        final ItemStack displayed = frame.getItem();
+        if (!displayed.hasItemMeta()) {
+            return Optional.empty();
+        }
+        final ItemMeta displayedMeta = displayed.getItemMeta();
+        if (displayedMeta == null) {
+            return Optional.empty();
+        }
+        final Integer tileIndex = displayedMeta.getPersistentDataContainer().get(tileIndexKey, PersistentDataType.INTEGER);
+        if (tileIndex == null || tileIndex < 0) {
+            return Optional.empty();
+        }
+        return Optional.of(tileIndex);
+    }
+
     private enum ToolAction {
-        POINTER,
+        POINTER_LEFT,
+        POINTER_RIGHT,
         BACK,
         FORWARD,
         RELOAD,
         SCROLL_UP,
         SCROLL_DOWN,
-        URL_BAR
+        URL_BAR,
+        TEXT_INPUT,
+        SCROLL
+    }
+
+    private enum AnvilMode {
+        URL,
+        TEXT
+    }
+
+    private record AnvilSession(UUID screenId, AnvilMode mode) {
     }
 
     private ItemStack createScreenMapItem(final Screen screen, final int tileIndex) {

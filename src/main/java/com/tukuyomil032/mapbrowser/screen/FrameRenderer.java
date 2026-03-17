@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.logging.Level;
 
 import org.bukkit.Bukkit;
 import org.bukkit.entity.Player;
@@ -57,6 +58,17 @@ public final class FrameRenderer {
             final int h
     ) {
         if (screen == null || deltaData == null) {
+            return;
+        }
+        if (w <= 0 || h <= 0) {
+            return;
+        }
+
+        final long expectedLength = (long) w * (long) h;
+        if (expectedLength > Integer.MAX_VALUE || deltaData.length < expectedLength) {
+            plugin.getLogger().log(Level.WARNING,
+                    "Skipping invalid DELTA_FRAME: expected={0} actual={1}",
+                    new Object[]{expectedLength, deltaData.length});
             return;
         }
 

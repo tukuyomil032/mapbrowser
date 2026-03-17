@@ -848,7 +848,7 @@ browser:
 
 screen:
   default-fps: 10         # デフォルト FPS
-  max-fps: 20             # 最大 FPS
+  max-fps: 30             # 最大 FPS
   max-width: 8
   max-height: 8
   max-screens-per-world: 8
@@ -867,10 +867,14 @@ youtube:
 
 items:
   pointer: FEATHER
+  pointer-left: FEATHER
+  pointer-right: FLINT
   back: BOW
   forward: ARROW
   reload: COMPASS
-  url-bar: BOOK_AND_QUILL
+  url-bar: WRITABLE_BOOK
+  text-input: WRITABLE_BOOK
+  scroll: MAGMA_CREAM
   scroll-up: SLIME_BALL
   scroll-down: MAGMA_CREAM
 

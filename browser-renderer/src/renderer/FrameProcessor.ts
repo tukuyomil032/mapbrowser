@@ -28,14 +28,14 @@ export type ProcessResult =
 export class FrameProcessor {
 	private readonly pool: Piscina;
 	private prevColorData: Uint8Array | null = null;
-	private static readonly MAX_DELTA_RECT_RATIO = 0.65;
+	private static readonly MAX_DELTA_RECT_RATIO = 0.8;
 	private static readonly MAX_CHANGED_PIXEL_RATIO = 0.4;
 
 	public constructor() {
 		this.pool = new Piscina({
 			filename: path.resolve(__dirname, "quantize.worker.js"),
 			minThreads: 1,
-			maxThreads: Math.max(2, Math.min(4, os.cpus().length)),
+			maxThreads: Math.max(2, Math.min(8, os.cpus().length)),
 		});
 	}
 
