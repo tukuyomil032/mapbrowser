@@ -38,6 +38,11 @@ export type JavaToNodeMessage =
 			type: "TEXT_INPUT";
 			screenId: string;
 			text: string;
+	  }
+	| {
+			type: "KEY_PRESS";
+			screenId: string;
+			key: string;
 	  };
 
 export type NodeToJavaMessage =

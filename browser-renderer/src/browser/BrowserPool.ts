@@ -84,6 +84,10 @@ export class BrowserPool {
 		await this.pages.get(screenId)?.typeText(text);
 	}
 
+	public async pressKey(screenId: string, key: string): Promise<void> {
+		await this.pages.get(screenId)?.pressKey(key);
+	}
+
 	public async shutdown(): Promise<void> {
 		for (const [screenId, page] of this.pages.entries()) {
 			await page.close();

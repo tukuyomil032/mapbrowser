@@ -550,8 +550,8 @@ interface IPCMessage {
 
 | type | 追加フィールド | 説明 |
 |------|--------------|------|
-| `FRAME` | `data` (Base64), `width`, `height` | キャプチャフレーム（色インデックス配列） |
-| `DELTA_FRAME` | `data` (Base64), `x`, `y`, `w`, `h` | 差分フレーム（変化領域のみ） |
+| `FRAME` | `width`, `height`（メタ）、`payload`（binary） | キャプチャフレーム（色インデックス配列） |
+| `DELTA_FRAME` | `x`, `y`, `w`, `h`（メタ）、`payload`（binary） | 差分フレーム（変化領域のみ） |
 | `URL_CHANGED` | `url` | ページ遷移後の URL |
 | `PAGE_LOADED` | — | ページロード完了 |
 | `ERROR` | `message` | エラー通知 |
@@ -560,8 +560,8 @@ interface IPCMessage {
 ### 7.4 フレームデータ仕様
 
 ```
-FRAME メッセージの data フィールド:
-  Base64 エンコードされた Uint8Array
+FRAME/DELTA_FRAME の payload:
+  バイナリの Uint8Array
   サイズ = screenWidth * 128 * screenHeight * 128 バイト
   各バイト = Minecraft MapColor インデックス (0〜143)
   
@@ -734,13 +734,14 @@ Floyd-Steinberg dithering を使用する。
 
 | アイテム | デフォルト素材 | 操作 |
 |---------|--------------|------|
-| ブラウザポインター | `FEATHER` | スクリーン右クリックでマウスクリック送信 |
+| 左クリックポインター | `FEATHER` | スクリーン右クリック位置へ左クリック送信 |
+| 右クリックポインター | `FLINT` | スクリーン右クリック位置へ右クリック送信 |
 | 戻る | `BOW` | ブラウザバック |
 | 進む | `ARROW` | ブラウザ進む |
 | リロード | `COMPASS` | ページリロード |
-| URL バー | `BOOK_AND_QUILL` | AnvilGUI で URL 入力 |
-| スクロール UP | `SLIME_BALL` | 上スクロール |
-| スクロール DOWN | `MAGMA_CREAM` | 下スクロール |
+| URL バー | `WRITABLE_BOOK` | AnvilGUI で URL 入力 |
+| テキスト入力 | `WRITABLE_BOOK` | AnvilGUI でフォーム文字入力 |
+| スクロール | `MAGMA_CREAM` | 右クリック:下 / Shift+右クリック:上 |
 
 ### 11.2 操作モード
 
@@ -958,7 +959,7 @@ debug: false
 | 制約 | 詳細 |
 |------|------|
 | **色数** | Minecraft マップは 144 色パレットに制限。フルカラーより品質が落ちる |
-| **FPS 上限** | MapPacket のスループット上限により 20 FPS が実用的な上限 |
+| **FPS 上限** | 実装上の設定上限は 30 FPS。実効値はマップ描画負荷に依存 |
 | **解像度上限** | 4×4 スクリーンで 512×512px が実用的な上限 |
 | **YouTube DRM** | Headless Chrome での DRM は yt-dlp で回避可能（Netflix 等の Widevine DRM は不可）|
 | **音声** | バニラクライアントでは音声非対応（コンパニオン Mod が必要）|
@@ -968,6 +969,8 @@ debug: false
 ---
 
 ## 19. 開発フェーズ
+
+**現在ステータス**: Phase 3（最適化・安定化）を優先実装中。
 
 ### Phase 1 — 映像表示 MVP（最優先）
 

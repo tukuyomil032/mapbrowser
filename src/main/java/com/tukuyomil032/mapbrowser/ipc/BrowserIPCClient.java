@@ -1,10 +1,12 @@
 package com.tukuyomil032.mapbrowser.ipc;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.ConnectException;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.WebSocket;
+import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
@@ -29,6 +31,10 @@ import com.tukuyomil032.mapbrowser.screen.ScreenState;
  */
 public final class BrowserIPCClient {
     private static final Gson GSON = new Gson();
+    private static final int FRAME_MAGIC = 0x4D424652; // MBFR
+    private static final int FRAME_VERSION = 1;
+    private static final int FRAME_TYPE_FULL = 1;
+    private static final int FRAME_TYPE_DELTA = 2;
 
     private final MapBrowserPlugin plugin;
     private final AtomicBoolean reconnecting = new AtomicBoolean(false);
@@ -155,6 +161,15 @@ public final class BrowserIPCClient {
     public void sendTextInput(final UUID screenId, final String text) {
         final JsonObject obj = IPCMessage.screenMessage("TEXT_INPUT", screenId);
         obj.addProperty("text", text);
+        sendJson(obj);
+    }
+
+    /**
+     * Sends key press command.
+     */
+    public void sendKeyPress(final UUID screenId, final String key) {
+        final JsonObject obj = IPCMessage.screenMessage("KEY_PRESS", screenId);
+        obj.addProperty("key", key);
         sendJson(obj);
     }
 
@@ -349,6 +364,63 @@ public final class BrowserIPCClient {
         }
     }
 
+    private void onBinaryMessage(final byte[] payload) {
+        if (payload == null || payload.length < 40) {
+            return;
+        }
+
+        try {
+            final ByteBuffer buffer = ByteBuffer.wrap(payload);
+            final int magic = buffer.getInt();
+            if (magic != FRAME_MAGIC) {
+                return;
+            }
+
+            final int version = Byte.toUnsignedInt(buffer.get());
+            if (version != FRAME_VERSION) {
+                plugin.getLogger().log(Level.WARNING, "Unsupported binary frame version: {0}", version);
+                return;
+            }
+
+            final int type = Byte.toUnsignedInt(buffer.get());
+            buffer.getShort(); // reserved
+
+            final long mostSigBits = buffer.getLong();
+            final long leastSigBits = buffer.getLong();
+            final UUID screenId = new UUID(mostSigBits, leastSigBits);
+
+            final int a = buffer.getInt();
+            final int b = buffer.getInt();
+            final int c = buffer.getInt();
+            final int d = buffer.getInt();
+
+            final byte[] data = new byte[buffer.remaining()];
+            buffer.get(data);
+
+            if (type == FRAME_TYPE_FULL) {
+                final int width = a & 0xFFFF;
+                final int height = (a >>> 16) & 0xFFFF;
+                if (width <= 0 || height <= 0) {
+                    return;
+                }
+                plugin.getScreenManager().getScreen(screenId)
+                        .ifPresent(screen -> plugin.getFrameRenderer().renderFrame(screen, data));
+                return;
+            }
+
+            if (type == FRAME_TYPE_DELTA) {
+                final int x = a;
+                final int y = b;
+                final int w = c;
+                final int h = d;
+                plugin.getScreenManager().getScreen(screenId)
+                        .ifPresent(screen -> plugin.getFrameRenderer().renderDeltaFrame(screen, data, x, y, w, h));
+            }
+        } catch (final IllegalStateException ex) {
+            plugin.getLogger().log(Level.WARNING, "Failed to handle binary IPC message: {0}", ex.getMessage());
+        }
+    }
+
     private void handleFrame(final JsonObject obj) {
         final UUID screenId = UUID.fromString(obj.get("screenId").getAsString());
         final byte[] data = Base64.getDecoder().decode(obj.get("data").getAsString().getBytes(StandardCharsets.UTF_8));
@@ -401,6 +473,7 @@ public final class BrowserIPCClient {
 
     private final class Listener implements WebSocket.Listener {
         private final StringBuilder textBuffer = new StringBuilder();
+        private final ByteArrayOutputStream binaryBuffer = new ByteArrayOutputStream();
 
         @Override
         public void onOpen(final WebSocket webSocket) {
@@ -414,6 +487,19 @@ public final class BrowserIPCClient {
             if (last) {
                 onMessage(textBuffer.toString());
                 textBuffer.setLength(0);
+            }
+            webSocket.request(1);
+            return CompletableFuture.completedFuture(null);
+        }
+
+        @Override
+        public CompletionStage<?> onBinary(final WebSocket webSocket, final ByteBuffer data, final boolean last) {
+            final byte[] chunk = new byte[data.remaining()];
+            data.get(chunk);
+            binaryBuffer.write(chunk, 0, chunk.length);
+            if (last) {
+                onBinaryMessage(binaryBuffer.toByteArray());
+                binaryBuffer.reset();
             }
             webSocket.request(1);
             return CompletableFuture.completedFuture(null);

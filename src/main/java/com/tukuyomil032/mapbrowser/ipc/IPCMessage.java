@@ -18,6 +18,7 @@ public final class IPCMessage {
     public static final String CLOSE = "CLOSE";
     public static final String SET_FPS = "SET_FPS";
     public static final String TEXT_INPUT = "TEXT_INPUT";
+    public static final String KEY_PRESS = "KEY_PRESS";
 
     public static final String READY = "READY";
     public static final String FRAME = "FRAME";

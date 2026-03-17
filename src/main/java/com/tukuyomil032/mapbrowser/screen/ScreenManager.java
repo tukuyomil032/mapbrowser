@@ -46,6 +46,60 @@ public final class ScreenManager {
     }
 
     /**
+     * Loads a screen into browser-renderer process.
+     */
+    public boolean loadScreen(final UUID screenId) {
+        final Screen screen = screens.get(screenId);
+        if (screen == null) {
+            return false;
+        }
+        plugin.getBrowserIPCClient().sendOpen(screen.getId(), screen.getWidth(), screen.getHeight(), screen.getFps());
+        final String url = screen.getCurrentUrl();
+        if (url != null && !url.isBlank() && !"about:blank".equalsIgnoreCase(url)) {
+            plugin.getBrowserIPCClient().sendNavigate(screen.getId(), url);
+        }
+        screen.setState(ScreenState.LOADING);
+        return true;
+    }
+
+    /**
+     * Unloads a screen from browser-renderer process.
+     */
+    public boolean unloadScreen(final UUID screenId) {
+        final Screen screen = screens.get(screenId);
+        if (screen == null) {
+            return false;
+        }
+        plugin.getBrowserIPCClient().sendClose(screen.getId());
+        screen.setState(ScreenState.PAUSED);
+        return true;
+    }
+
+    /**
+     * Ensures a screen is loaded before browser commands are sent.
+     */
+    public boolean ensureLoaded(final UUID screenId) {
+        final Screen screen = screens.get(screenId);
+        if (screen == null) {
+            return false;
+        }
+        if (screen.getState() == ScreenState.PLAYING || screen.getState() == ScreenState.LOADING) {
+            return true;
+        }
+        return loadScreen(screenId);
+    }
+
+    /**
+     * Unloads all screens and marks them as paused.
+     */
+    public void unloadAll() {
+        for (final Screen screen : screens.values()) {
+            plugin.getBrowserIPCClient().sendClose(screen.getId());
+            screen.setState(ScreenState.PAUSED);
+        }
+    }
+
+    /**
      * Creates a screen from player context.
      */
     public Screen createScreen(
@@ -200,6 +254,7 @@ public final class ScreenManager {
      * Shuts down manager.
      */
     public void shutdown() {
+        unloadAll();
         saveAll();
         screens.clear();
         selectedByPlayer.clear();

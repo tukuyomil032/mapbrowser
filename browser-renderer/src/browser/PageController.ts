@@ -15,12 +15,18 @@ export class PageController {
 	private readonly frameProcessor = new FrameProcessor();
 	private readonly widthMaps: number;
 	private readonly heightMaps: number;
-	private fps: number;
+	private requestedFps: number;
+	private adaptiveFps: number;
 	private readonly onFrame: (result: ProcessResult) => void;
 	private readonly onUrlChanged: (url: string) => void;
 	private readonly onPageLoaded: () => void;
 	private processingFrame = false;
-	private pendingFrame: Buffer | null = null;
+	private pendingFrameData: string | null = null;
+	private nextAllowedFrameAtMs = 0;
+	private smoothedProcessMs = 0;
+	private droppedByThrottle = 0;
+	private processedSinceTune = 0;
+	private lastTuneAtMs = Date.now();
 
 	public constructor(
 		widthMaps: number,
@@ -32,7 +38,8 @@ export class PageController {
 	) {
 		this.widthMaps = widthMaps;
 		this.heightMaps = heightMaps;
-		this.fps = fps;
+		this.requestedFps = Math.max(1, fps);
+		this.adaptiveFps = this.requestedFps;
 		this.onFrame = onFrame;
 		this.onUrlChanged = onUrlChanged;
 		this.onPageLoaded = onPageLoaded;
@@ -109,13 +116,24 @@ export class PageController {
 	}
 
 	public async setFps(fps: number): Promise<void> {
-		this.fps = Math.max(1, fps);
+		this.requestedFps = Math.max(1, fps);
+		this.adaptiveFps = this.requestedFps;
+		this.nextAllowedFrameAtMs = 0;
+		this.smoothedProcessMs = 0;
+		this.droppedByThrottle = 0;
+		this.processedSinceTune = 0;
+		this.lastTuneAtMs = Date.now();
 		await this.startCapture();
 	}
 
 	public async typeText(text: string): Promise<void> {
 		if (!this.page) return;
 		await this.page.keyboard.type(text);
+	}
+
+	public async pressKey(key: string): Promise<void> {
+		if (!this.page) return;
+		await this.page.keyboard.press(key);
 	}
 
 	private async startCapture(): Promise<void> {
@@ -130,7 +148,7 @@ export class PageController {
 			this.cdp = null;
 		}
 		this.cdp = await this.page.context().newCDPSession(this.page);
-		const everyNthFrame = Math.max(1, Math.floor(60 / this.fps));
+		const everyNthFrame = Math.max(1, Math.floor(60 / this.requestedFps));
 
 		this.cdp.on(
 			"Page.screencastFrame",
@@ -140,13 +158,14 @@ export class PageController {
 				});
 
 				try {
-					const pngBuffer = Buffer.from(event.data, "base64");
-					if (this.processingFrame) {
-						// Keep only the newest frame while processing to avoid queue buildup.
-						this.pendingFrame = pngBuffer;
+					const now = Date.now();
+					if (this.processingFrame || now < this.nextAllowedFrameAtMs) {
+						// Keep only the newest frame while overloaded.
+						this.pendingFrameData = event.data;
+						this.droppedByThrottle++;
 						return;
 					}
-					await this.processFrame(pngBuffer);
+					await this.processFrame(event.data);
 				} catch (error) {
 					logger.error("Failed to process screencast frame", error);
 				}
@@ -162,29 +181,76 @@ export class PageController {
 		});
 	}
 
-	private async processFrame(initialBuffer: Buffer): Promise<void> {
+	private async processFrame(initialFrameData: string): Promise<void> {
 		this.processingFrame = true;
-		let current = initialBuffer;
+		let currentFrameData: string | null = initialFrameData;
 		try {
-			while (true) {
+			while (currentFrameData) {
+				const startedAt = Date.now();
+				const currentBuffer = Buffer.from(currentFrameData, "base64");
 				const processed = await this.frameProcessor.process(
-					current,
+					currentBuffer,
 					this.widthMaps,
 					this.heightMaps,
 				);
 				if (processed.type !== "SKIP") {
 					this.onFrame(processed);
 				}
+				const elapsedMs = Math.max(1, Date.now() - startedAt);
+				this.updateAdaptiveFps(elapsedMs);
+				this.nextAllowedFrameAtMs =
+					Date.now() + Math.floor(1000 / this.adaptiveFps);
 
-				const next = this.pendingFrame;
+				const next = this.pendingFrameData;
 				if (!next) {
 					break;
 				}
-				this.pendingFrame = null;
-				current = next;
+				this.pendingFrameData = null;
+				currentFrameData = next;
 			}
 		} finally {
 			this.processingFrame = false;
 		}
+	}
+
+	private updateAdaptiveFps(processMs: number): void {
+		this.smoothedProcessMs =
+			this.smoothedProcessMs === 0
+				? processMs
+				: this.smoothedProcessMs * 0.8 + processMs * 0.2;
+		this.processedSinceTune++;
+
+		const now = Date.now();
+		if (now - this.lastTuneAtMs < 600 && this.processedSinceTune < 8) {
+			return;
+		}
+
+		const minFps = 5;
+		const currentBudgetMs = 1000 / Math.max(1, this.adaptiveFps);
+		let nextAdaptive = this.adaptiveFps;
+
+		if (
+			this.smoothedProcessMs > currentBudgetMs * 1.15 ||
+			this.droppedByThrottle >= 4
+		) {
+			nextAdaptive = Math.max(minFps, Math.floor(this.adaptiveFps * 0.85));
+		} else if (
+			this.smoothedProcessMs < currentBudgetMs * 0.7 &&
+			this.droppedByThrottle === 0 &&
+			this.adaptiveFps < this.requestedFps
+		) {
+			nextAdaptive = Math.min(this.requestedFps, this.adaptiveFps + 1);
+		}
+
+		if (nextAdaptive !== this.adaptiveFps) {
+			logger.debug(
+				`Adaptive FPS tuned: ${this.adaptiveFps} -> ${nextAdaptive} (process=${this.smoothedProcessMs.toFixed(1)}ms dropped=${this.droppedByThrottle})`,
+			);
+			this.adaptiveFps = nextAdaptive;
+		}
+
+		this.droppedByThrottle = 0;
+		this.processedSinceTune = 0;
+		this.lastTuneAtMs = now;
 	}
 }

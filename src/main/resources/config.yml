@@ -38,6 +38,7 @@ items:
   reload: COMPASS
   url-bar: WRITABLE_BOOK
   text-input: WRITABLE_BOOK
+  text-delete: SHEARS
   scroll: MAGMA_CREAM
   scroll-up: SLIME_BALL
   scroll-down: MAGMA_CREAM

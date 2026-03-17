@@ -109,24 +109,28 @@ public final class InputHandler implements Listener {
         final ItemStack heldItem = player.getInventory().getItemInMainHand();
 
         if (matchesTool(heldItem, "back", "items.back", Material.BOW)) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
             plugin.getBrowserIPCClient().sendGoBack(screen.getId());
             event.setCancelled(true);
             return;
         }
 
         if (matchesTool(heldItem, "forward", "items.forward", Material.ARROW)) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
             plugin.getBrowserIPCClient().sendGoForward(screen.getId());
             event.setCancelled(true);
             return;
         }
 
         if (matchesTool(heldItem, "reload", "items.reload", Material.COMPASS)) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
             plugin.getBrowserIPCClient().sendReload(screen.getId());
             event.setCancelled(true);
             return;
         }
 
         if (matchesTool(heldItem, "scroll", "items.scroll", Material.MAGMA_CREAM)) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
             final int delta = player.isSneaking() ? -300 : 300;
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), delta);
             event.setCancelled(true);
@@ -134,12 +138,14 @@ public final class InputHandler implements Listener {
         }
 
         if (matchesTool(heldItem, "scroll-up", "items.scroll-up", Material.SLIME_BALL)) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), -300);
             event.setCancelled(true);
             return;
         }
 
         if (matchesTool(heldItem, "scroll-down", "items.scroll-down", Material.MAGMA_CREAM)) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), 300);
             event.setCancelled(true);
             return;
@@ -153,6 +159,18 @@ public final class InputHandler implements Listener {
 
         if (matchesTool(heldItem, "text-input", "items.text-input", Material.WRITABLE_BOOK)) {
             openTextInput(player, screen);
+            event.setCancelled(true);
+            return;
+        }
+
+        if (matchesTool(heldItem, "text-delete", "items.text-delete", Material.SHEARS)) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (player.isSneaking()) {
+                plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Control+A");
+                plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Backspace");
+            } else {
+                plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Backspace");
+            }
             event.setCancelled(true);
         }
     }
@@ -184,16 +202,9 @@ public final class InputHandler implements Listener {
             return;
         }
 
-        final ItemStack outputItem = event.getCurrentItem();
-        final String input;
-        if (outputItem != null && outputItem.hasItemMeta() && outputItem.getItemMeta() != null) {
-            final Component displayName = outputItem.getItemMeta().displayName();
-            input = displayName == null ? null : PlainTextComponentSerializer.plainText().serialize(displayName);
-        } else {
-            input = null;
-        }
+        final String input = extractAnvilInput(event);
         if (input == null || input.isBlank()) {
-            player.sendMessage("URL is empty.");
+            player.sendMessage(session.mode() == AnvilMode.URL ? "URL is empty." : "Text is empty.");
             player.closeInventory();
             return;
         }
@@ -213,14 +224,47 @@ public final class InputHandler implements Listener {
                 player.closeInventory();
                 return;
             }
+            plugin.getScreenManager().ensureLoaded(screen.getId());
             screen.setCurrentUrl(validated.valueOrReason());
             plugin.getBrowserIPCClient().sendNavigate(screen.getId(), validated.valueOrReason());
             player.sendMessage("Navigating: " + validated.valueOrReason());
         } else {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
             plugin.getBrowserIPCClient().sendTextInput(screen.getId(), input);
             player.sendMessage("Typed text into browser.");
         }
         player.closeInventory();
+    }
+
+    private String extractAnvilInput(final InventoryClickEvent event) {
+        final Inventory top = event.getView().getTopInventory();
+
+        final String fromClicked = extractDisplayText(event.getCurrentItem());
+        if (fromClicked != null && !fromClicked.isBlank()) {
+            return fromClicked;
+        }
+
+        final String fromOutputSlot = extractDisplayText(top.getItem(2));
+        if (fromOutputSlot != null && !fromOutputSlot.isBlank()) {
+            return fromOutputSlot;
+        }
+
+        return null;
+    }
+
+    private String extractDisplayText(final ItemStack item) {
+        if (item == null || !item.hasItemMeta()) {
+            return null;
+        }
+        final ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return null;
+        }
+        final Component displayName = meta.displayName();
+        if (displayName == null) {
+            return null;
+        }
+        return PlainTextComponentSerializer.plainText().serialize(displayName).trim();
     }
 
     /**
@@ -408,7 +452,7 @@ public final class InputHandler implements Listener {
         final Inventory anvil = Bukkit.createInventory(player, InventoryType.ANVIL, Component.text("MapBrowser Text Input"));
         final ItemStack paper = new ItemStack(Material.PAPER);
         final ItemMeta meta = paper.getItemMeta();
-        meta.displayName(Component.text("Type text here"));
+        meta.displayName(Component.text(" "));
         paper.setItemMeta(meta);
         anvil.setItem(0, paper);
         anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.TEXT));
@@ -640,6 +684,9 @@ public final class InputHandler implements Listener {
         if (matchesTool(held, "text-input", "items.text-input", Material.WRITABLE_BOOK)) {
             return Optional.of(ToolAction.TEXT_INPUT);
         }
+        if (matchesTool(held, "text-delete", "items.text-delete", Material.SHEARS)) {
+            return Optional.of(ToolAction.TEXT_DELETE);
+        }
         if (matchesTool(held, "scroll", "items.scroll", Material.MAGMA_CREAM)) {
             return Optional.of(ToolAction.SCROLL);
         }
@@ -652,6 +699,9 @@ public final class InputHandler implements Listener {
             final ToolAction action,
             final RaycastUtil.Vector2i clickPoint
     ) {
+        if (action != ToolAction.URL_BAR && action != ToolAction.TEXT_INPUT) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
+        }
         switch (action) {
             case POINTER_LEFT -> plugin.getBrowserIPCClient().sendMouseClick(screen.getId(), clickPoint.x(), clickPoint.y(), "left");
             case POINTER_RIGHT -> plugin.getBrowserIPCClient().sendMouseClick(screen.getId(), clickPoint.x(), clickPoint.y(), "right");
@@ -662,6 +712,15 @@ public final class InputHandler implements Listener {
             case SCROLL_DOWN -> plugin.getBrowserIPCClient().sendScroll(screen.getId(), 300);
             case URL_BAR -> openUrlInput(player, screen);
             case TEXT_INPUT -> openTextInput(player, screen);
+            case TEXT_DELETE -> {
+                plugin.getScreenManager().ensureLoaded(screen.getId());
+                if (player.isSneaking()) {
+                    plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Control+A");
+                    plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Backspace");
+                } else {
+                    plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Backspace");
+                }
+            }
             case SCROLL -> {
                 final int delta = player.isSneaking() ? -300 : 300;
                 plugin.getBrowserIPCClient().sendScroll(screen.getId(), delta);
@@ -744,6 +803,7 @@ public final class InputHandler implements Listener {
         SCROLL_DOWN,
         URL_BAR,
         TEXT_INPUT,
+        TEXT_DELETE,
         SCROLL
     }
 

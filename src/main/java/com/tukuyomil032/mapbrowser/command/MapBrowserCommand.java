@@ -78,12 +78,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             sendInfo(sender, "/mb create <w> <h> [name] [--autofill]");
             sendInfo(sender, "/mb menu|gui");
             sendInfo(sender, "/mb select <screen-id|screen-name>");
-            sendInfo(sender, "/mb list, /mb info, /mb delete [screen], /mb exit");
+            sendInfo(sender, "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete [screen], /mb exit");
             sendInfo(sender, "/mb refill [screen], /mb resize <screen> <w> <h>");
             sendInfo(sender, "/mb config simulate_particle <end_rod|flame>");
             sendInfo(sender, "/mb config language <en|ja>");
             sendInfo(sender, "/mb open <url>, /mb type <text>, /mb back, /mb forward, /mb reload, /mb fps <value>");
-            sendInfo(sender, "/mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|scroll>");
+            sendInfo(sender, "/mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|scroll>");
             sendInfo(sender, "/mb admin status|deps|stop <screenId>");
             sendLine(sender);
             return true;
@@ -102,6 +102,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "fps" -> handleFps(sender, args);
             case "list" -> handleList(sender);
             case "info" -> handleInfo(sender);
+            case "load" -> handleLoad(sender, args);
+            case "unload" -> handleUnload(sender, args);
             case "delete" -> handleDestroy(sender, args);
             case "remove", "destroy" -> {
                 sendError(sender, "Use /mb delete.");
@@ -131,7 +133,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             final String[] args
     ) {
         if (args.length == 1) {
-            return Arrays.asList("create", "menu", "gui", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "delete", "refill", "resize", "config", "give", "exit", "admin");
+            return Arrays.asList("create", "menu", "gui", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "load", "unload", "delete", "refill", "resize", "config", "give", "exit", "admin");
         }
         if (args.length == 2 && "create".equalsIgnoreCase(args[0])) {
             return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
@@ -142,7 +144,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if (args.length >= 4 && "create".equalsIgnoreCase(args[0])) {
             return List.of("--autofill");
         }
-        if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "refill".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]))) {
+        if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "refill".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]) || "load".equalsIgnoreCase(args[0]) || "unload".equalsIgnoreCase(args[0]))) {
             return screenNameSuggestions();
         }
         if (args.length == 3 && "resize".equalsIgnoreCase(args[0])) {
@@ -172,7 +174,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return values;
         }
         if (args.length == 2 && "give".equalsIgnoreCase(args[0])) {
-            return Arrays.asList("pointer-left", "pointer-right", "pointer", "back", "forward", "reload", "url-bar", "text-input", "scroll", "scroll-up", "scroll-down");
+            return Arrays.asList("pointer-left", "pointer-right", "pointer", "back", "forward", "reload", "url-bar", "text-input", "text-delete", "scroll", "scroll-up", "scroll-down");
         }
         if (args.length == 2 && "admin".equalsIgnoreCase(args[0])) {
             return List.of("status", "deps", "stop");
@@ -277,9 +279,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         menu.setItem(21, createMenuItem(Material.MAGMA_CREAM, "Give Scroll", "give-scroll", "Right-click down / Shift right-click up"));
         menu.setItem(22, createMenuItem(Material.WRITABLE_BOOK, "Give Text Input", "give-text-input", "Open text input dialog"));
         menu.setItem(23, createMenuItem(Material.WRITABLE_BOOK, "Give URL Bar", "give-url-bar", "Open URL input dialog"));
-        menu.setItem(24, createMenuItem(Material.BOW, "Give Back", "give-back", "Browser back"));
-        menu.setItem(25, createMenuItem(Material.ARROW, "Give Forward", "give-forward", "Browser forward"));
-        menu.setItem(26, createMenuItem(Material.COMPASS, "Give Reload", "give-reload", "Browser reload"));
+        menu.setItem(24, createMenuItem(Material.SHEARS, "Give Text Delete", "give-text-delete", "Backspace / clear input"));
+        menu.setItem(25, createMenuItem(Material.BOW, "Give Back", "give-back", "Browser back"));
+        menu.setItem(26, createMenuItem(Material.ARROW, "Give Forward", "give-forward", "Browser forward"));
+        menu.setItem(27, createMenuItem(Material.COMPASS, "Give Reload", "give-reload", "Browser reload"));
 
         menu.setItem(31, createMenuItem(Material.REDSTONE, "FPS 5", "fps-5", "Low load mode"));
         menu.setItem(32, createMenuItem(Material.GLOWSTONE_DUST, "FPS 10", "fps-10", "Balanced mode"));
@@ -376,6 +379,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final Screen screen = selected.get();
+        plugin.getScreenManager().ensureLoaded(screen.getId());
         screen.setCurrentUrl(result.valueOrReason());
         plugin.getBrowserIPCClient().sendNavigate(screen.getId(), result.valueOrReason());
         sendOk(sender, "Navigating: " + result.valueOrReason());
@@ -411,7 +415,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        plugin.getBrowserIPCClient().sendTextInput(selected.get().getId(), text);
+        final Screen screen = selected.get();
+        plugin.getScreenManager().ensureLoaded(screen.getId());
+        plugin.getBrowserIPCClient().sendTextInput(screen.getId(), text);
         sendOk(sender, "Typed text into browser.");
         return true;
     }
@@ -432,6 +438,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final Screen screen = selected.get();
+        plugin.getScreenManager().ensureLoaded(screen.getId());
         switch (type) {
             case "GO_BACK" -> plugin.getBrowserIPCClient().sendGoBack(screen.getId());
             case "GO_FORWARD" -> plugin.getBrowserIPCClient().sendGoForward(screen.getId());
@@ -481,8 +488,57 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Screen screen = selected.get();
         screen.setFps(fps);
+        plugin.getScreenManager().ensureLoaded(screen.getId());
         plugin.getBrowserIPCClient().sendSetFps(screen.getId(), fps);
         sendOk(sender, "FPS updated: " + fps);
+        return true;
+    }
+
+    private boolean handleLoad(final CommandSender sender, final String[] args) {
+        if (!(sender instanceof Player player)) {
+            sendError(sender, "Player only command.");
+            return true;
+        }
+
+        final Optional<Screen> target = args.length >= 2
+                ? resolveScreen(args[1], player)
+                : plugin.getScreenManager().getSelected(player.getUniqueId());
+        if (target.isEmpty()) {
+            sendError(sender, args.length >= 2 ? "Screen not found." : "No selected screen.");
+            return true;
+        }
+
+        final Screen screen = target.get();
+        if (plugin.getScreenManager().loadScreen(screen.getId())) {
+            sendOk(sender, "Screen loaded: " + screen.getName());
+            return true;
+        }
+
+        sendError(sender, "Load failed.");
+        return true;
+    }
+
+    private boolean handleUnload(final CommandSender sender, final String[] args) {
+        if (!(sender instanceof Player player)) {
+            sendError(sender, "Player only command.");
+            return true;
+        }
+
+        final Optional<Screen> target = args.length >= 2
+                ? resolveScreen(args[1], player)
+                : plugin.getScreenManager().getSelected(player.getUniqueId());
+        if (target.isEmpty()) {
+            sendError(sender, args.length >= 2 ? "Screen not found." : "No selected screen.");
+            return true;
+        }
+
+        final Screen screen = target.get();
+        if (plugin.getScreenManager().unloadScreen(screen.getId())) {
+            sendOk(sender, "Screen unloaded: " + screen.getName());
+            return true;
+        }
+
+        sendError(sender, "Unload failed.");
         return true;
     }
 
@@ -756,7 +812,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|scroll>");
+            sendError(sender, "Usage: /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|scroll>");
             return true;
         }
 
@@ -770,6 +826,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "reload" -> "items.reload";
             case "url-bar" -> "items.url-bar";
             case "text-input" -> "items.text-input";
+            case "text-delete" -> "items.text-delete";
             case "scroll" -> "items.scroll";
             case "scroll-up" -> "items.scroll-up";
             case "scroll-down" -> "items.scroll-down";
@@ -824,6 +881,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "reload" -> Material.COMPASS;
             case "url-bar" -> Material.WRITABLE_BOOK;
             case "text-input" -> Material.WRITABLE_BOOK;
+            case "text-delete" -> Material.SHEARS;
             case "scroll", "scroll-down" -> Material.MAGMA_CREAM;
             case "scroll-up" -> Material.SLIME_BALL;
             default -> Material.FEATHER;
@@ -849,6 +907,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 case "reload" -> "リロード";
                 case "url-bar" -> "URL入力";
                 case "text-input" -> "テキスト入力";
+                case "text-delete" -> "テキスト削除";
                 case "scroll", "scroll-up", "scroll-down" -> "スクロール";
                 default -> "ブラウザ操作";
             };
@@ -861,6 +920,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "reload" -> "Browser Reload";
             case "url-bar" -> "Browser URL Bar";
             case "text-input" -> "Browser Text Input";
+            case "text-delete" -> "Browser Text Delete";
             case "scroll", "scroll-up", "scroll-down" -> "Browser Scroll";
             default -> "Browser Control";
         };
@@ -876,6 +936,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 case "reload" -> "選択中スクリーンを再読み込み";
                 case "url-bar" -> "右クリックでURL入力を開く";
                 case "text-input" -> "右クリックで文字入力を開く";
+                case "text-delete" -> "右クリックで1文字削除、Shift+右クリックで全削除";
                 case "scroll" -> "右クリックで下へ、Shift+右クリックで上へスクロール";
                 case "scroll-up" -> "右クリックで上へスクロール";
                 case "scroll-down" -> "右クリックで下へスクロール";
@@ -890,6 +951,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "reload" -> "Reload selected screen";
             case "url-bar" -> "Right-click to open URL input";
             case "text-input" -> "Right-click to open text input";
+            case "text-delete" -> "Right-click to backspace, Shift+right-click to clear all";
             case "scroll" -> "Right-click scroll down, Shift+right-click scroll up";
             case "scroll-up" -> "Right-click to scroll up";
             case "scroll-down" -> "Right-click to scroll down";
@@ -1162,6 +1224,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "give-forward" -> "mb give forward";
             case "give-reload" -> "mb give reload";
             case "give-text-input" -> "mb give text-input";
+            case "give-text-delete" -> "mb give text-delete";
             case "give-scroll" -> "mb give scroll";
             case "give-scroll-up" -> "mb give scroll-up";
             case "give-scroll-down" -> "mb give scroll-down";

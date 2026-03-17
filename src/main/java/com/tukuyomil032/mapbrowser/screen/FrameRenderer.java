@@ -21,9 +21,12 @@ import com.tukuyomil032.mapbrowser.util.MapColorUtil;
  * Handles incoming frame bytes and keeps per-screen frame cache.
  */
 public final class FrameRenderer {
+    private static final Color[] PALETTE_COLORS = buildPaletteColors();
+
     private final MapBrowserPlugin plugin;
     private final Map<UUID, byte[]> lastFrames = new ConcurrentHashMap<>();
-    private final Map<UUID, Integer> revisions = new ConcurrentHashMap<>();
+    private final Map<UUID, int[]> tileRevisionsByScreen = new ConcurrentHashMap<>();
+    private final Map<UUID, DirtyRect[]> tileDirtyRectsByScreen = new ConcurrentHashMap<>();
     private final Map<UUID, List<Integer>> mapIdsByScreen = new ConcurrentHashMap<>();
     private final Map<Integer, MapRenderer> renderersByMapId = new ConcurrentHashMap<>();
 
@@ -41,8 +44,17 @@ public final class FrameRenderer {
         if (screen == null || colorData == null) {
             return;
         }
+
+        final int fullSize = screen.getWidth() * 128 * screen.getHeight() * 128;
+        if (colorData.length < fullSize) {
+            plugin.getLogger().log(Level.WARNING,
+                    "Skipping invalid FRAME: expected>={0} actual={1}",
+                    new Object[]{fullSize, colorData.length});
+            return;
+        }
+
         lastFrames.put(screen.getId(), colorData);
-        revisions.merge(screen.getId(), 1, (left, right) -> left + right);
+        bumpAllTiles(screen);
         screen.setState(ScreenState.PLAYING);
     }
 
@@ -112,7 +124,7 @@ public final class FrameRenderer {
             }
         }
 
-        revisions.merge(screen.getId(), 1, (left, right) -> left + right);
+        bumpDirtyTiles(screen, x, y, w, h);
         screen.setState(ScreenState.PLAYING);
     }
 
@@ -150,6 +162,8 @@ public final class FrameRenderer {
         }
 
         mapIdsByScreen.put(screen.getId(), ids);
+        ensureTileRevisions(screen);
+        ensureTileDirtyRects(screen);
     }
 
     /**
@@ -177,7 +191,8 @@ public final class FrameRenderer {
      */
     public void clear(final UUID screenId) {
         lastFrames.remove(screenId);
-        revisions.remove(screenId);
+        tileRevisionsByScreen.remove(screenId);
+        tileDirtyRectsByScreen.remove(screenId);
         unregisterScreen(screenId);
     }
 
@@ -189,8 +204,105 @@ public final class FrameRenderer {
             unregisterScreen(screenId);
         }
         lastFrames.clear();
-        revisions.clear();
+        tileRevisionsByScreen.clear();
+        tileDirtyRectsByScreen.clear();
         plugin.getLogger().info("FrameRenderer shutdown completed.");
+    }
+
+    private int[] ensureTileRevisions(final Screen screen) {
+        final int tileCount = screen.getWidth() * screen.getHeight();
+        return tileRevisionsByScreen.compute(screen.getId(), (ignored, existing) -> {
+            if (existing == null || existing.length != tileCount) {
+                return new int[tileCount];
+            }
+            return existing;
+        });
+    }
+
+    private DirtyRect[] ensureTileDirtyRects(final Screen screen) {
+        final int tileCount = screen.getWidth() * screen.getHeight();
+        return tileDirtyRectsByScreen.compute(screen.getId(), (ignored, existing) -> {
+            if (existing == null || existing.length != tileCount) {
+                return new DirtyRect[tileCount];
+            }
+            return existing;
+        });
+    }
+
+    private void bumpAllTiles(final Screen screen) {
+        final int[] tileRevisions = ensureTileRevisions(screen);
+        synchronized (tileRevisions) {
+            for (int i = 0; i < tileRevisions.length; i++) {
+                tileRevisions[i] = tileRevisions[i] + 1;
+            }
+        }
+        // Full frame invalidates per-tile dirty regions; next draw should render full tile.
+        tileDirtyRectsByScreen.remove(screen.getId());
+    }
+
+    private void bumpDirtyTiles(final Screen screen, final int x, final int y, final int w, final int h) {
+        final int fullWidth = screen.getWidth() * 128;
+        final int fullHeight = screen.getHeight() * 128;
+
+        final int minX = Math.max(0, x);
+        final int minY = Math.max(0, y);
+        final int maxX = Math.min(fullWidth - 1, x + w - 1);
+        final int maxY = Math.min(fullHeight - 1, y + h - 1);
+        if (maxX < minX || maxY < minY) {
+            return;
+        }
+
+        final int minTileX = minX / 128;
+        final int maxTileX = maxX / 128;
+        final int minTileY = minY / 128;
+        final int maxTileY = maxY / 128;
+        final int[] tileRevisions = ensureTileRevisions(screen);
+        final DirtyRect[] dirtyRects = ensureTileDirtyRects(screen);
+        synchronized (tileRevisions) {
+            for (int ty = minTileY; ty <= maxTileY; ty++) {
+                for (int tx = minTileX; tx <= maxTileX; tx++) {
+                    final int tileIndex = (ty * screen.getWidth()) + tx;
+                    if (tileIndex >= 0 && tileIndex < tileRevisions.length) {
+                        tileRevisions[tileIndex] = tileRevisions[tileIndex] + 1;
+
+                        final int tileStartX = tx * 128;
+                        final int tileStartY = ty * 128;
+                        final int localMinX = Math.max(0, minX - tileStartX);
+                        final int localMinY = Math.max(0, minY - tileStartY);
+                        final int localMaxX = Math.min(127, maxX - tileStartX);
+                        final int localMaxY = Math.min(127, maxY - tileStartY);
+                        final DirtyRect incoming = new DirtyRect(localMinX, localMinY, localMaxX, localMaxY);
+                        final DirtyRect existing = dirtyRects[tileIndex];
+                        dirtyRects[tileIndex] = existing == null ? incoming : existing.merge(incoming);
+                    }
+                }
+            }
+        }
+    }
+
+    private int tileRevision(final Screen screen, final int tileIndex) {
+        final int[] tileRevisions = ensureTileRevisions(screen);
+        if (tileIndex < 0 || tileIndex >= tileRevisions.length) {
+            return 0;
+        }
+        return tileRevisions[tileIndex];
+    }
+
+    private DirtyRect tileDirtyRect(final Screen screen, final int tileIndex) {
+        final DirtyRect[] dirtyRects = ensureTileDirtyRects(screen);
+        if (tileIndex < 0 || tileIndex >= dirtyRects.length) {
+            return null;
+        }
+        return dirtyRects[tileIndex];
+    }
+
+    private static Color[] buildPaletteColors() {
+        final int[] palette = MapColorUtil.MAP_COLORS_RGB;
+        final Color[] colors = new Color[palette.length];
+        for (int i = 0; i < palette.length; i++) {
+            colors[i] = new Color(palette[i]);
+        }
+        return colors;
     }
 
     private final class ScreenTileRenderer extends MapRenderer {
@@ -211,7 +323,7 @@ public final class FrameRenderer {
                 return;
             }
 
-            final int revision = revisions.getOrDefault(screenId, 0);
+            final int revision = tileRevision(screen, tileIndex);
             final UUID playerId = player.getUniqueId();
             final Integer renderedRevision = renderedRevisionByPlayer.get(playerId);
             if (renderedRevision != null && renderedRevision == revision) {
@@ -229,23 +341,45 @@ public final class FrameRenderer {
             final int startX = tileX * 128;
             final int startY = tileY * 128;
 
-            for (int y = 0; y < 128; y++) {
+            final boolean drawFull = renderedRevision == null || renderedRevision < (revision - 1);
+            final DirtyRect dirtyRect = drawFull ? DirtyRect.fullTile() : tileDirtyRect(screen, tileIndex);
+            final int drawMinX = dirtyRect == null ? 0 : dirtyRect.minX();
+            final int drawMinY = dirtyRect == null ? 0 : dirtyRect.minY();
+            final int drawMaxX = dirtyRect == null ? 127 : dirtyRect.maxX();
+            final int drawMaxY = dirtyRect == null ? 127 : dirtyRect.maxY();
+
+            for (int y = drawMinY; y <= drawMaxY; y++) {
                 final int srcRow = (startY + y) * fullWidth;
-                for (int x = 0; x < 128; x++) {
+                for (int x = drawMinX; x <= drawMaxX; x++) {
                     final int srcIndex = srcRow + startX + x;
                     if (srcIndex < 0 || srcIndex >= frame.length) {
                         continue;
                     }
                     final int paletteIndex = Byte.toUnsignedInt(frame[srcIndex]);
-                    final int rgb = MapColorUtil.MAP_COLORS_RGB[paletteIndex % MapColorUtil.MAP_COLORS_RGB.length];
-                    final int r = (rgb >> 16) & 0xFF;
-                    final int g = (rgb >> 8) & 0xFF;
-                    final int b = rgb & 0xFF;
-                    canvas.setPixelColor(x, y, new Color(r, g, b));
+                    final int safeIndex = paletteIndex < PALETTE_COLORS.length ? paletteIndex : 0;
+                    canvas.setPixelColor(x, y, PALETTE_COLORS[safeIndex]);
                 }
             }
 
             renderedRevisionByPlayer.put(playerId, revision);
+        }
+    }
+
+    private record DirtyRect(int minX, int minY, int maxX, int maxY) {
+        private DirtyRect merge(final DirtyRect other) {
+            if (other == null) {
+                return this;
+            }
+            return new DirtyRect(
+                    Math.min(minX, other.minX),
+                    Math.min(minY, other.minY),
+                    Math.max(maxX, other.maxX),
+                    Math.max(maxY, other.maxY)
+            );
+        }
+
+        private static DirtyRect fullTile() {
+            return new DirtyRect(0, 0, 127, 127);
         }
     }
 }

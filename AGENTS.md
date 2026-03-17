@@ -66,7 +66,11 @@ MAPBROWSER/
 
 ## IPC プロトコル（最重要）
 
-Java ↔ Node.js の通信は **JSON over WebSocket**。
+Java ↔ Node.js の通信は **WebSocket**。
+
+- Java → Node.js のコマンドは JSON テキスト
+- Node.js → Java の制御イベント（READY/URL_CHANGED/PAGE_LOADED/ERROR）は JSON テキスト
+- Node.js → Java のフレーム（FRAME/DELTA_FRAME）は **独自バイナリフレーム**
 
 ### Java → Node.js（コマンド）
 
@@ -86,20 +90,27 @@ Java ↔ Node.js の通信は **JSON over WebSocket**。
 
 ```json
 { "type": "READY" }
-{ "type": "FRAME",       "screenId": "<uuid>", "data": "<base64>", "width": 2, "height": 2 }
-{ "type": "DELTA_FRAME", "screenId": "<uuid>", "data": "<base64>", "x": 0, "y": 0, "w": 128, "h": 64 }
 { "type": "URL_CHANGED", "screenId": "<uuid>", "url": "https://..." }
 { "type": "PAGE_LOADED", "screenId": "<uuid>" }
 { "type": "ERROR",       "screenId": "<uuid>", "message": "..." }
 ```
 
-### フレームデータ仕様
+FRAME/DELTA_FRAME は JSON ではなくバイナリで送信する。
+
+### フレームデータ仕様（Node.js → Java）
 
 ```
-FRAME.data = Base64 エンコードされた Uint8Array
-サイズ = width * 128 * height * 128 バイト
-各バイト = Minecraft MapColor インデックス (0〜143)
-走査順 = 左→右、上→下（ラスタースキャン）
+Binary Header:
+  magic(4) = MBFR
+  version(1)
+  type(1) = 1:FRAME, 2:DELTA_FRAME
+  reserved(2)
+  screenId(16, UUID bytes)
+  meta(16, int32 x4)
+
+Payload:
+  Uint8Array (Minecraft MapColor インデックス)
+  走査順 = 左→右、上→下（ラスタースキャン）
 ```
 
 **このプロトコルを変更する場合は必ず `types/ipc.ts` と `IPCMessage.java` を同時に更新すること。**
@@ -131,7 +142,11 @@ FRAME.data = Base64 エンコードされた Uint8Array
 ### 共通
 
 - コミットメッセージは英語で `feat:`, `fix:`, `refactor:`, `docs:` のプレフィックスを使う
-- `node_modules/`, `dist/`, `build/` はコミットしない
+- 実装や編集、1プロンプトの作業が終わったあと、その変更内容にふさわしいコミットメッセージを含めたコマンドを提示するかしないか、ユーザーに質問モードで質問をすること。ここで言う質問とは、あなたが出力する文章で聞くのではなく、Planモードで要件定義をするときに使用する選択式の質問のこと。コミットコマンドのフォーマットは、`git commit -m "message" -m "message" -m "message"`のように、実装した内容を大まかにまとめて、-mオプションでそれぞれ改行すること。
+- 当該プロンプトで実装や編集を終えたあと、ビルドをする前にバックグラウンドから全ファイル(.java / .ts / .json / .ymlなど)を読み取り、エラーや警告がある場合、エラーの内容と原因を調査し、それも修正すること。1度の修正で直らない場合もあるため、修正後にもう一度バックグラウンドからエラーを取得し、エラー及び警告が0件になるまで処理を続行すること。
+- 複数の更新・追加作業内容がある場合、段階ごとに1,2,3と番号をつけて振り分けること。また、この番号付きの作業内容は1度のプロンプトで全て実装すること。段階ごとに実装を進め、段階ごとに実装内容をユーザに逐一報告しながら進めること。
+  - 例えば、1.バイナリIPC化（Base64撤廃, 2.適応FPS制御, 3.Java側の矩形差分描画拡張の3つのタスクがある場合、1〜3のタスクをこなしてくださいと命令されたら、その1回のプロンプトで全て実装を終えてください。
+- `node_modules/`, `dist/`, `build/`, `run/`はコミットしない
 
 ---
 
@@ -252,15 +267,15 @@ pnpm typecheck
 
 ## フェーズ状態（現在の開発フェーズ）
 
-> **現在: Phase 1 実装中**
+> **現在: Phase 3 実装中（最適化・安定化）**
 
-- [ ] Phase 1: 映像表示 MVP（IPC 基盤 + MapPacket 送信 + 10 FPS 表示）
-- [ ] Phase 2: インタラクション（クリック・URL 入力・操作アイテム）
+- [x] Phase 1: 映像表示 MVP（IPC 基盤 + MapPacket 送信 + 10 FPS 表示）
+- [x] Phase 2: インタラクション（クリック・URL 入力・操作アイテム）
 - [ ] Phase 3: 最適化・安定化（デルタ圧縮・YouTube・権限・永続化）
 - [ ] Phase 4: 音声・コンパニオン Mod
 - [ ] Phase 5: Velocity 対応・API 公開
 
-**Phase 1 が完了するまで Phase 2 以降のコードを書かないこと。**
+**現在は Phase 3 最適化タスクを優先して実装すること。**
 
 ---
 
@@ -268,11 +283,18 @@ pnpm typecheck
 
 以下の場合は実装を止めて確認を求めること:
 
-1. IPC プロトコルのメッセージ型を追加・変更する場合
+1. IPC プロトコル（JSON項目またはバイナリヘッダ仕様）を追加・変更する場合
 2. 新しい外部ライブラリを追加する場合
 3. `config.yml` の構造を変更する場合
 4. Minecraft の NMS に直接アクセスが必要に見える場合
 5. フレームデータのフォーマットを変更する場合
+
+---
+
+## ファイルごとのルール
+1. Java言語としての構文やインデントルールを厳密に守り、可読性の高いコードを書くこと
+2. 1ファイルあたりの行数が700または800行を超える場合、ロジックごとになるべくファイルを分割して可読性の低下を防ぐこと
+3. ファイルを新規作成、または既存ファイルのファイル名を変更する場合、ファイル名はなるべく短く、わかり易い名前にすること
 
 ---
 

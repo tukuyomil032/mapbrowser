@@ -7,6 +7,11 @@ import { isJavaToNodeMessage, type NodeToJavaMessage } from "../types/ipc.js";
 import { logger } from "../util/logger.js";
 
 export class IPCServer {
+	private static readonly FRAME_MAGIC = 0x4d424652; // MBFR
+	private static readonly FRAME_VERSION = 1;
+	private static readonly TYPE_FRAME = 1;
+	private static readonly TYPE_DELTA = 2;
+
 	private readonly wss: WebSocketServer;
 	private readonly pool: BrowserPool;
 	private socket: WebSocket | null = null;
@@ -86,6 +91,9 @@ export class IPCServer {
 			case "TEXT_INPUT":
 				await this.pool.typeText(msg.screenId, msg.text);
 				return;
+			case "KEY_PRESS":
+				await this.pool.pressKey(msg.screenId, msg.key);
+				return;
 			default:
 				throw new Error("Unsupported type");
 		}
@@ -93,26 +101,87 @@ export class IPCServer {
 
 	private handleFrame(screenId: string, result: ProcessResult): void {
 		if (result.type === "FRAME") {
-			this.send({
-				type: "FRAME",
+			this.sendFrameBinary(
 				screenId,
-				data: Buffer.from(result.data).toString("base64"),
-				width: result.width,
-				height: result.height,
-			});
+				IPCServer.TYPE_FRAME,
+				result.data,
+				(result.width & 0xffff) | ((result.height & 0xffff) << 16),
+				0,
+				0,
+				0,
+			);
 			return;
 		}
 		if (result.type === "DELTA_FRAME") {
-			this.send({
-				type: "DELTA_FRAME",
+			this.sendFrameBinary(
 				screenId,
-				data: Buffer.from(result.data).toString("base64"),
-				x: result.x,
-				y: result.y,
-				w: result.w,
-				h: result.h,
-			});
+				IPCServer.TYPE_DELTA,
+				result.data,
+				result.x,
+				result.y,
+				result.w,
+				result.h,
+			);
 		}
+	}
+
+	private sendFrameBinary(
+		screenId: string,
+		type: number,
+		payload: Uint8Array,
+		a: number,
+		b: number,
+		c: number,
+		d: number,
+	): void {
+		if (!this.socket || this.socket.readyState !== 1) {
+			return;
+		}
+		const uuid = this.uuidToBytes(screenId);
+		if (!uuid) {
+			logger.warn(`Invalid screenId for binary frame: ${screenId}`);
+			return;
+		}
+
+		const headerSize = 4 + 1 + 1 + 2 + 16 + 16;
+		const packet = Buffer.allocUnsafe(headerSize + payload.length);
+		let offset = 0;
+
+		packet.writeUInt32BE(IPCServer.FRAME_MAGIC, offset);
+		offset += 4;
+		packet.writeUInt8(IPCServer.FRAME_VERSION, offset);
+		offset += 1;
+		packet.writeUInt8(type, offset);
+		offset += 1;
+		packet.writeUInt16BE(0, offset);
+		offset += 2;
+
+		uuid.copy(packet, offset);
+		offset += 16;
+
+		packet.writeInt32BE(a, offset);
+		offset += 4;
+		packet.writeInt32BE(b, offset);
+		offset += 4;
+		packet.writeInt32BE(c, offset);
+		offset += 4;
+		packet.writeInt32BE(d, offset);
+		offset += 4;
+
+		Buffer.from(payload).copy(packet, offset);
+		this.socket.send(packet);
+	}
+
+	private uuidToBytes(value: string): Buffer | null {
+		const hex = value.replace(/-/g, "").toLowerCase();
+		if (!/^[0-9a-f]{32}$/.test(hex)) {
+			return null;
+		}
+		const out = Buffer.allocUnsafe(16);
+		for (let i = 0; i < 16; i++) {
+			out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+		}
+		return out;
 	}
 
 	private send(message: NodeToJavaMessage): void {
