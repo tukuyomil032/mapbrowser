@@ -109,7 +109,9 @@ player.sendPluginMessage(plugin, "mapbrowser:velocity", bos.toByteArray());
 
 - `PING`:
 	- Request status snapshot from backend server.
-	- Response command is `STATUS` with fields: `screenCount`, `ipcConnected`, `onlinePlayers`.
+	- Response command is `STATUS` with fields:
+	  - legacy: `screenCount`, `ipcConnected`, `onlinePlayers`
+	  - extended: `ipcHealthSummary`, `inboundTotal`, `inboundFrame`, `inboundDelta`, `audioDiagnostics`
 - `OPEN_URL`:
 	- Payload: `screenId` (UUID), `url`.
 	- Backend validates URL with the same security rules as player command flow.
@@ -132,7 +134,7 @@ player.sendPluginMessage(plugin, "mapbrowser:velocity", bos.toByteArray());
 | Command | Direction | Payload | Result |
 |---|---|---|---|
 | PING | Proxy -> Backend | - | STATUS response |
-| STATUS | Backend -> Proxy | screenCount, ipcConnected, onlinePlayers | Current backend snapshot |
+| STATUS | Backend -> Proxy | screenCount, ipcConnected, onlinePlayers, ipcHealthSummary, inboundTotal, inboundFrame, inboundDelta, audioDiagnostics | Current backend snapshot + diagnostics |
 | OPEN_URL | Proxy -> Backend | screenId, url | URL validated then NAVIGATE applied |
 | RELOAD_SCREEN | Proxy -> Backend | screenId | RELOAD applied when screen exists |
 | SET_FPS | Proxy -> Backend | screenId, fps | FPS updated and SET_FPS applied |

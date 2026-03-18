@@ -106,10 +106,16 @@ public final class VelocityMessagingBridge implements PluginMessageListener {
 
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream();
              DataOutputStream out = new DataOutputStream(bos)) {
+            final var ipcStats = plugin.getBrowserIPCClient().snapshotStats();
             out.writeUTF("STATUS");
             out.writeInt(plugin.getScreenManager().getAllScreens().size());
             out.writeBoolean(plugin.getBrowserIPCClient().isConnected());
             out.writeInt(player.getServer().getOnlinePlayers().size());
+            out.writeUTF(plugin.getBrowserIPCClient().healthSummary());
+            out.writeLong(ipcStats.inboundTotal());
+            out.writeLong(ipcStats.inboundFrame());
+            out.writeLong(ipcStats.inboundDelta());
+            out.writeUTF(plugin.getAudioBridge().diagnostics());
             out.flush();
             player.sendPluginMessage(plugin, CHANNEL, bos.toByteArray());
         } catch (final IOException ex) {
