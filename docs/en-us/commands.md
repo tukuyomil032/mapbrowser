@@ -54,7 +54,7 @@ Base command:
 
 - Most commands are player-only.
 - Most commands target selected screen when screen argument is omitted.
-- Tile range supports `all`, `odd`, `even` and 1-based index expressions.
-- Examples: `all`, `odd`, `1`, `1-3`, `1,4,6-8`.
+- Tile selector supports `all`, `odd`, `even`, coordinate `x-y`, rectangle `x1-y1:x2-y2`, and linear range `n..m`.
+- Examples: `all`, `odd`, `1-2`, `1-1:3-2`, `1`, `1..3`, `1,4,6..8`.
 - URL input is validated by security rules.
 - FPS must be in configured allowed range.

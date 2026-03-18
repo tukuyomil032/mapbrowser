@@ -151,11 +151,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             if (sender instanceof Player player) {
                 final Optional<Screen> target = resolveScreen(args[1], player);
                 if (target.isPresent()) {
-                    final int total = target.get().getMapIds().length;
-                    return List.of("all", "odd", "even", "1", "1-3", "1-" + total);
+                    final Screen screen = target.get();
+                    final int total = screen.getMapIds().length;
+                    return List.of("all", "odd", "even", "1-1", "1-2", "1-1:2-2", "1..3", "1.." + total, "1");
                 }
             }
-            return List.of("all", "odd", "even", "1", "1-3");
+            return List.of("all", "odd", "even", "1-1", "1-2", "1-1:2-2", "1..3", "1");
         }
         if (args.length == 3 && "resize".equalsIgnoreCase(args[0])) {
             return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
@@ -658,8 +659,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         if (args.length < 2) {
             sendError(sender, "Usage: /mb give-frame <screen-id|screen-name> <tile-range>");
-            sendInfo(sender, "Example: /mb gif test 1-3");
-            sendInfo(sender, "Range format: all, odd, even, 1, 1-3, 1,3,5-8");
+            sendInfo(sender, "Example: /mb gif test 1-2");
+            sendInfo(sender, "Format: all, odd, even, x-y, x1-y1:x2-y2, n, n..m, n,m,p..q");
             return true;
         }
 
@@ -685,11 +686,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        final Optional<List<Integer>> parsed = parseTileRange(rangeExpr, tileCount);
+        final Optional<List<Integer>> parsed = parseTileRange(rangeExpr, screen.getWidth(), screen.getHeight());
         if (parsed.isEmpty()) {
             sendError(sender, "Invalid tile range: " + rangeExpr);
-            sendInfo(sender, "Use all/odd/even or 1-based indexes. Example: all, 1-3, 1,4,6-8");
-            sendInfo(sender, "Valid tile range: 1-" + tileCount);
+            sendInfo(sender, "Use all/odd/even, x-y coordinates, or 1-based linear indexes.");
+            sendInfo(sender, "Examples: 1-2, 1-1:3-2, 1..3, 1,4,6..8");
+            sendInfo(sender, "Coordinate bounds: x=1-" + screen.getWidth() + ", y=1-" + screen.getHeight());
             return true;
         }
 
@@ -706,7 +708,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         return true;
     }
 
-    private Optional<List<Integer>> parseTileRange(final String rangeExpr, final int tileCount) {
+    private Optional<List<Integer>> parseTileRange(final String rangeExpr, final int width, final int height) {
+        final int tileCount = width * height;
         if (rangeExpr == null || rangeExpr.isBlank() || tileCount <= 0) {
             return Optional.empty();
         }
@@ -740,10 +743,32 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 continue;
             }
 
-            final int dash = token.indexOf('-');
-            if (dash >= 0) {
-                final String startRaw = token.substring(0, dash);
-                final String endRaw = token.substring(dash + 1);
+            final int colon = token.indexOf(':');
+            if (colon >= 0) {
+                final String left = token.substring(0, colon);
+                final String right = token.substring(colon + 1);
+                final Optional<int[]> c1 = parseCoordinate(left, width, height);
+                final Optional<int[]> c2 = parseCoordinate(right, width, height);
+                if (c1.isEmpty() || c2.isEmpty()) {
+                    return Optional.empty();
+                }
+
+                final int fromX = Math.min(c1.get()[0], c2.get()[0]);
+                final int toX = Math.max(c1.get()[0], c2.get()[0]);
+                final int fromY = Math.min(c1.get()[1], c2.get()[1]);
+                final int toY = Math.max(c1.get()[1], c2.get()[1]);
+                for (int y = fromY; y <= toY; y++) {
+                    for (int x = fromX; x <= toX; x++) {
+                        selected.add(((y - 1) * width) + (x - 1));
+                    }
+                }
+                continue;
+            }
+
+            final int dots = token.indexOf("..");
+            if (dots >= 0) {
+                final String startRaw = token.substring(0, dots);
+                final String endRaw = token.substring(dots + 2);
                 if (startRaw.isBlank() || endRaw.isBlank()) {
                     return Optional.empty();
                 }
@@ -768,6 +793,19 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 continue;
             }
 
+            final int dash = token.indexOf('-');
+            if (dash >= 0) {
+                final Optional<int[]> coordinate = parseCoordinate(token, width, height);
+                if (coordinate.isEmpty()) {
+                    return Optional.empty();
+                }
+                final int x = coordinate.get()[0];
+                final int y = coordinate.get()[1];
+                final int tileIndex = (y - 1) * width + (x - 1);
+                selected.add(tileIndex);
+                continue;
+            }
+
             final int single;
             try {
                 single = Integer.parseInt(token);
@@ -784,6 +822,27 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return Optional.empty();
         }
         return Optional.of(new ArrayList<>(selected));
+    }
+
+    private Optional<int[]> parseCoordinate(final String token, final int width, final int height) {
+        final int dash = token.indexOf('-');
+        if (dash <= 0 || dash >= token.length() - 1) {
+            return Optional.empty();
+        }
+        final String xRaw = token.substring(0, dash);
+        final String yRaw = token.substring(dash + 1);
+        final int x;
+        final int y;
+        try {
+            x = Integer.parseInt(xRaw);
+            y = Integer.parseInt(yRaw);
+        } catch (final NumberFormatException ex) {
+            return Optional.empty();
+        }
+        if (x < 1 || y < 1 || x > width || y > height) {
+            return Optional.empty();
+        }
+        return Optional.of(new int[]{x, y});
     }
 
     private boolean handleResize(final CommandSender sender, final String[] args) {
