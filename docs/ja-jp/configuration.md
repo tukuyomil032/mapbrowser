@@ -35,6 +35,11 @@
 
 - companion-mod-enabled
 - channel
+- capture-mode: `none` または `media-recorder`
+- media-recorder-timeslice-ms: MediaRecorder のチャンク間隔(ms)
+- sample-rate: Opus フレームのサンプルレート
+- frame-interval-ms: テスト音声フレーム送信間隔(ms)
+- test-opus-base64: 設定時にNode側でテスト用Opusフレームを定期送信
 
 ## items
 

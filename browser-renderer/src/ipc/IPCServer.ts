@@ -1,6 +1,10 @@
 // このファイルの責務: Java Plugin との WebSocket IPC を受け付け、各機能へルーティングする。
 import { WebSocketServer, type WebSocket } from "ws";
 
+import {
+	createAudioPipeline,
+	type AudioFrame,
+} from "../audio/AudioPipeline.js";
 import { BrowserPool } from "../browser/BrowserPool.js";
 import type { ProcessResult } from "../renderer/FrameProcessor.js";
 import { isJavaToNodeMessage, type NodeToJavaMessage } from "../types/ipc.js";
@@ -17,10 +21,14 @@ export class IPCServer {
 	private socket: WebSocket | null = null;
 
 	public constructor(port: number) {
+		const audioPipeline = createAudioPipeline((frame) =>
+			this.handleAudioFrame(frame),
+		);
 		this.pool = new BrowserPool(
 			(screenId, result) => this.handleFrame(screenId, result),
 			(screenId, url) => this.send({ type: "URL_CHANGED", screenId, url }),
 			(screenId) => this.send({ type: "PAGE_LOADED", screenId }),
+			audioPipeline,
 		);
 		this.wss = new WebSocketServer({ port, host: "127.0.0.1" });
 	}
@@ -50,7 +58,7 @@ export class IPCServer {
 		});
 
 		logger.info(
-			"IPC server started on ws://127.0.0.1:" + this.wss.options.port,
+			`IPC server started on ws://127.0.0.1:${this.wss.options.port}`,
 		);
 	}
 
@@ -123,6 +131,15 @@ export class IPCServer {
 				result.h,
 			);
 		}
+	}
+
+	private handleAudioFrame(frame: AudioFrame): void {
+		this.send({
+			type: "AUDIO_FRAME",
+			screenId: frame.screenId,
+			data: Buffer.from(frame.opusData).toString("base64"),
+			sampleRate: frame.sampleRate,
+		});
 	}
 
 	private sendFrameBinary(

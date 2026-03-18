@@ -35,6 +35,11 @@ Main file: src/main/resources/config.yml
 
 - companion-mod-enabled: enable plugin messaging audio bridge
 - channel: plugin message channel for audio
+- capture-mode: `none` or `media-recorder`
+- media-recorder-timeslice-ms: MediaRecorder chunk interval in milliseconds
+- sample-rate: sample rate for forwarded Opus frames
+- frame-interval-ms: synthetic audio frame cadence in milliseconds
+- test-opus-base64: when set, renderer emits periodic Opus test frames
 
 ## items
 

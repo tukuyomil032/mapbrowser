@@ -75,6 +75,11 @@ public final class VelocityMessagingBridge implements PluginMessageListener {
                 final String screenIdRaw = in.readUTF();
                 final int fps = in.readInt();
                 handleSetFps(player, screenIdRaw, fps);
+                return;
+            }
+            if ("CLOSE_SCREEN".equalsIgnoreCase(command)) {
+                final String screenIdRaw = in.readUTF();
+                handleCloseScreen(player, screenIdRaw);
             }
         } catch (final IOException ex) {
             plugin.getLogger().log(Level.WARNING, "Failed to decode velocity message: {0}", ex.getMessage());
@@ -161,6 +166,24 @@ public final class VelocityMessagingBridge implements PluginMessageListener {
         }
 
         plugin.getLogger().log(Level.INFO, "Velocity SET_FPS accepted: {0} -> {1}", new Object[]{screenId, fps});
+        sendStatus(player);
+    }
+
+    private void handleCloseScreen(final Player player, final String screenIdRaw) {
+        final UUID screenId;
+        try {
+            screenId = UUID.fromString(screenIdRaw);
+        } catch (final IllegalArgumentException ex) {
+            plugin.getLogger().log(Level.WARNING, "Velocity CLOSE_SCREEN rejected: invalid screenId {0}", screenIdRaw);
+            return;
+        }
+
+        if (!plugin.getService().close(screenId)) {
+            plugin.getLogger().log(Level.WARNING, "Velocity CLOSE_SCREEN rejected: screen not found {0}", screenId);
+            return;
+        }
+
+        plugin.getLogger().log(Level.INFO, "Velocity CLOSE_SCREEN accepted: {0}", screenId);
         sendStatus(player);
     }
 }

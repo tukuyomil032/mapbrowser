@@ -278,6 +278,19 @@ public final class BrowserIPCClient {
             final ProcessBuilder pb = new ProcessBuilder(executable, "dist/index.js");
             pb.directory(workingDir);
             pb.redirectErrorStream(true);
+            final Map<String, String> env = pb.environment();
+                final String captureMode = plugin.getConfig().getString("audio.capture-mode", "none");
+                env.put("MAPBROWSER_AUDIO_CAPTURE_MODE", captureMode == null ? "none" : captureMode);
+                env.put("MAPBROWSER_AUDIO_MEDIARECORDER_TIMESLICE_MS",
+                    String.valueOf(plugin.getConfig().getInt("audio.media-recorder-timeslice-ms", 200)));
+            final String testOpusBase64 = plugin.getConfig().getString("audio.test-opus-base64", "");
+            if (testOpusBase64 != null && !testOpusBase64.isBlank()) {
+                env.put("MAPBROWSER_AUDIO_TEST_OPUS_BASE64", testOpusBase64);
+                env.put("MAPBROWSER_AUDIO_SAMPLE_RATE",
+                        String.valueOf(plugin.getConfig().getInt("audio.sample-rate", 48000)));
+                env.put("MAPBROWSER_AUDIO_FRAME_INTERVAL_MS",
+                        String.valueOf(plugin.getConfig().getInt("audio.frame-interval-ms", 100)));
+            }
             rendererProcess = pb.start();
             rendererStartEpochMillis = System.currentTimeMillis();
             connectFailures.set(0);

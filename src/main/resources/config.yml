@@ -28,6 +28,11 @@ youtube:
 audio:
   companion-mod-enabled: false
   channel: "mapbrowser:audio"
+  capture-mode: "none"
+  media-recorder-timeslice-ms: 200
+  sample-rate: 48000
+  frame-interval-ms: 100
+  test-opus-base64: ""
   max-distance: 32
 
 items:

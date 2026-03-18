@@ -200,6 +200,10 @@ export class PageController {
 		await this.page.keyboard.press(key);
 	}
 
+	public getPage(): Page | null {
+		return this.page;
+	}
+
 	private async startCapture(): Promise<void> {
 		if (!this.page) return;
 		if (this.cdp) {

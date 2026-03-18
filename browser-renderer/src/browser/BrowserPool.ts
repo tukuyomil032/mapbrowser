@@ -1,10 +1,15 @@
 // このファイルの責務: screenId と PageController の対応を管理する。
+import {
+	NoopAudioPipeline,
+	type AudioPipeline,
+} from "../audio/AudioPipeline.js";
 import type { ProcessResult } from "../renderer/FrameProcessor.js";
 import { logger } from "../util/logger.js";
 import { PageController } from "./PageController.js";
 
 export class BrowserPool {
 	private readonly pages = new Map<string, PageController>();
+	private readonly audioPipeline: AudioPipeline;
 	private readonly onFrame: (screenId: string, result: ProcessResult) => void;
 	private readonly onUrlChanged: (screenId: string, url: string) => void;
 	private readonly onPageLoaded: (screenId: string) => void;
@@ -13,10 +18,12 @@ export class BrowserPool {
 		onFrame: (screenId: string, result: ProcessResult) => void,
 		onUrlChanged: (screenId: string, url: string) => void,
 		onPageLoaded: (screenId: string) => void,
+		audioPipeline: AudioPipeline = new NoopAudioPipeline(),
 	) {
 		this.onFrame = onFrame;
 		this.onUrlChanged = onUrlChanged;
 		this.onPageLoaded = onPageLoaded;
+		this.audioPipeline = audioPipeline;
 	}
 
 	public async open(
@@ -36,7 +43,9 @@ export class BrowserPool {
 		);
 		await controller.open();
 		this.pages.set(screenId, controller);
+		await this.audioPipeline.start(screenId, controller.getPage());
 		logger.info(`Screen opened: ${screenId}`);
+		logger.debug(this.audioPipeline.diagnostics());
 	}
 
 	public async close(screenId: string): Promise<void> {
@@ -44,7 +53,9 @@ export class BrowserPool {
 		if (!page) return;
 		await page.close();
 		this.pages.delete(screenId);
+		await this.audioPipeline.stop(screenId);
 		logger.info(`Screen closed: ${screenId}`);
+		logger.debug(this.audioPipeline.diagnostics());
 	}
 
 	public async navigate(screenId: string, url: string): Promise<void> {
@@ -91,7 +102,9 @@ export class BrowserPool {
 	public async shutdown(): Promise<void> {
 		for (const [screenId, page] of this.pages.entries()) {
 			await page.close();
+			await this.audioPipeline.stop(screenId);
 			this.pages.delete(screenId);
 		}
+		logger.debug(this.audioPipeline.diagnostics());
 	}
 }
