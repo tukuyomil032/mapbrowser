@@ -36,6 +36,8 @@ Current methods are defined in [src/main/java/com/tukuyomil032/mapbrowser/servic
 - `boolean reload(UUID screenId)`
 - `boolean setFps(UUID screenId, int fps)`
 - `boolean close(UUID screenId)`
+- `boolean goBack(UUID screenId)`
+- `boolean goForward(UUID screenId)`
 - `ServiceStatus status()`
 
 | Method | Input | Output | Behavior |
@@ -46,6 +48,8 @@ Current methods are defined in [src/main/java/com/tukuyomil032/mapbrowser/servic
 | reload | UUID | boolean | Emits RELOAD IPC if screen exists |
 | setFps | UUID, int | boolean | Updates runtime FPS and emits SET_FPS IPC |
 | close | UUID | boolean | Emits CLOSE IPC if screen exists |
+| goBack | UUID | boolean | Emits GO_BACK IPC if screen exists |
+| goForward | UUID | boolean | Emits GO_FORWARD IPC if screen exists |
 | status | - | ServiceStatus | Returns IPC/screen summary |
 
 ## Notes
@@ -60,6 +64,46 @@ Current methods are defined in [src/main/java/com/tukuyomil032/mapbrowser/servic
 - Avoid direct manager access from external plugins; prefer `MapBrowserService`.
 - Treat `Screen` as a runtime model; persistence format may change.
 - For cross-server/proxy scenarios, use the velocity messaging bridge channel `mapbrowser:velocity`.
+
+## Usage Examples
+
+### Java plugin integration example
+
+```java
+MapBrowserPlugin plugin = MapBrowserPlugin.getInstance();
+MapBrowserService service = plugin.getService();
+
+UUID screenId = UUID.fromString("00000000-0000-0000-0000-000000000001");
+
+service.openUrl(screenId, "https://example.com");
+service.setFps(screenId, 15);
+service.reload(screenId);
+service.goBack(screenId);
+
+MapBrowserService.ServiceStatus status = service.status();
+plugin.getLogger().info("ipcConnected=" + status.ipcConnected()
+	+ ", screens=" + status.screenCount());
+```
+
+### Velocity plugin message payload example
+
+```java
+ByteArrayOutputStream bos = new ByteArrayOutputStream();
+DataOutputStream out = new DataOutputStream(bos);
+out.writeUTF("SET_FPS");
+out.writeUTF(screenId.toString());
+out.writeInt(20);
+out.flush();
+
+player.sendPluginMessage(plugin, "mapbrowser:velocity", bos.toByteArray());
+```
+
+### Companion Mod context
+
+- The backend plugin can forward `AUDIO_FRAME` payloads over plugin messaging.
+- Minecraft vanilla clients cannot decode these payloads as in-game audio.
+- A companion client-side mod is required to decode and play those packets spatially.
+- This repository currently provides the server-side transport and diagnostics path; client-side playback implementation and compatibility validation must be done with the companion mod side.
 
 ## Velocity Bridge Commands (Current)
 
@@ -78,6 +122,12 @@ Current methods are defined in [src/main/java/com/tukuyomil032/mapbrowser/servic
 - `CLOSE_SCREEN`:
 	- Payload: `screenId` (UUID).
 	- Backend invokes service `close(...)`.
+- `BACK_SCREEN`:
+	- Payload: `screenId` (UUID).
+	- Backend invokes service `goBack(...)`.
+- `FORWARD_SCREEN`:
+	- Payload: `screenId` (UUID).
+	- Backend invokes service `goForward(...)`.
 
 | Command | Direction | Payload | Result |
 |---|---|---|---|
@@ -87,3 +137,5 @@ Current methods are defined in [src/main/java/com/tukuyomil032/mapbrowser/servic
 | RELOAD_SCREEN | Proxy -> Backend | screenId | RELOAD applied when screen exists |
 | SET_FPS | Proxy -> Backend | screenId, fps | FPS updated and SET_FPS applied |
 | CLOSE_SCREEN | Proxy -> Backend | screenId | CLOSE applied when screen exists |
+| BACK_SCREEN | Proxy -> Backend | screenId | GO_BACK applied when screen exists |
+| FORWARD_SCREEN | Proxy -> Backend | screenId | GO_FORWARD applied when screen exists |

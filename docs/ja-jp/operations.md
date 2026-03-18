@@ -18,6 +18,10 @@
 Companion Mod を導入していないクライアントは、音声プラグインメッセージを再生できない。
 `audio.test-opus-base64` を設定すると、テスト用の Opus データを送信できる。
 
+Companion Mod とは:
+MapBrowserサーバーが送る音声ペイロードをクライアント側で受信・デコードし、位置情報付きで再生するためのクライアントMod。
+既製の汎用Modをそのまま使う前提ではなく、MapBrowser向けのプロトコルに合わせた実装（または互換実装）が必要。
+
 ## リリース手順
 
 1. build.gradle.kts の version を更新

@@ -41,6 +41,16 @@ public interface MapBrowserService {
     boolean close(UUID screenId);
 
     /**
+     * Requests browser history back for a screen.
+     */
+    boolean goBack(UUID screenId);
+
+    /**
+     * Requests browser history forward for a screen.
+     */
+    boolean goForward(UUID screenId);
+
+    /**
      * Returns public status snapshot.
      */
     ServiceStatus status();

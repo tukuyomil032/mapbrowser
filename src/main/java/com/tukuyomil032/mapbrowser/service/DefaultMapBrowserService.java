@@ -84,6 +84,30 @@ public final class DefaultMapBrowserService implements MapBrowserService {
     }
 
     /**
+     * Requests browser history back for a screen.
+     */
+    @Override
+    public boolean goBack(final UUID screenId) {
+        return plugin.getScreenManager().getScreen(screenId).map(screen -> {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
+            plugin.getBrowserIPCClient().sendGoBack(screen.getId());
+            return true;
+        }).orElse(false);
+    }
+
+    /**
+     * Requests browser history forward for a screen.
+     */
+    @Override
+    public boolean goForward(final UUID screenId) {
+        return plugin.getScreenManager().getScreen(screenId).map(screen -> {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
+            plugin.getBrowserIPCClient().sendGoForward(screen.getId());
+            return true;
+        }).orElse(false);
+    }
+
+    /**
      * Returns public status snapshot.
      */
     @Override

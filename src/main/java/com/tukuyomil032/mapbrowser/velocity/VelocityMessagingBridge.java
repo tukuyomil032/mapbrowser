@@ -80,6 +80,16 @@ public final class VelocityMessagingBridge implements PluginMessageListener {
             if ("CLOSE_SCREEN".equalsIgnoreCase(command)) {
                 final String screenIdRaw = in.readUTF();
                 handleCloseScreen(player, screenIdRaw);
+                return;
+            }
+            if ("BACK_SCREEN".equalsIgnoreCase(command)) {
+                final String screenIdRaw = in.readUTF();
+                handleBackScreen(player, screenIdRaw);
+                return;
+            }
+            if ("FORWARD_SCREEN".equalsIgnoreCase(command)) {
+                final String screenIdRaw = in.readUTF();
+                handleForwardScreen(player, screenIdRaw);
             }
         } catch (final IOException ex) {
             plugin.getLogger().log(Level.WARNING, "Failed to decode velocity message: {0}", ex.getMessage());
@@ -184,6 +194,42 @@ public final class VelocityMessagingBridge implements PluginMessageListener {
         }
 
         plugin.getLogger().log(Level.INFO, "Velocity CLOSE_SCREEN accepted: {0}", screenId);
+        sendStatus(player);
+    }
+
+    private void handleBackScreen(final Player player, final String screenIdRaw) {
+        final UUID screenId;
+        try {
+            screenId = UUID.fromString(screenIdRaw);
+        } catch (final IllegalArgumentException ex) {
+            plugin.getLogger().log(Level.WARNING, "Velocity BACK_SCREEN rejected: invalid screenId {0}", screenIdRaw);
+            return;
+        }
+
+        if (!plugin.getService().goBack(screenId)) {
+            plugin.getLogger().log(Level.WARNING, "Velocity BACK_SCREEN rejected: screen not found {0}", screenId);
+            return;
+        }
+
+        plugin.getLogger().log(Level.INFO, "Velocity BACK_SCREEN accepted: {0}", screenId);
+        sendStatus(player);
+    }
+
+    private void handleForwardScreen(final Player player, final String screenIdRaw) {
+        final UUID screenId;
+        try {
+            screenId = UUID.fromString(screenIdRaw);
+        } catch (final IllegalArgumentException ex) {
+            plugin.getLogger().log(Level.WARNING, "Velocity FORWARD_SCREEN rejected: invalid screenId {0}", screenIdRaw);
+            return;
+        }
+
+        if (!plugin.getService().goForward(screenId)) {
+            plugin.getLogger().log(Level.WARNING, "Velocity FORWARD_SCREEN rejected: screen not found {0}", screenId);
+            return;
+        }
+
+        plugin.getLogger().log(Level.INFO, "Velocity FORWARD_SCREEN accepted: {0}", screenId);
         sendStatus(player);
     }
 }
