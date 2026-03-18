@@ -128,7 +128,71 @@ export class PageController {
 
 	public async typeText(text: string): Promise<void> {
 		if (!this.page) return;
-		await this.page.keyboard.type(text);
+		const inserted = await this.page.evaluate((value) => {
+			const isEditable = (element: Element | null): element is HTMLElement => {
+				if (!(element instanceof HTMLElement)) {
+					return false;
+				}
+				if (element instanceof HTMLInputElement) {
+					return (
+						element.type !== "hidden" && !element.disabled && !element.readOnly
+					);
+				}
+				if (element instanceof HTMLTextAreaElement) {
+					return !element.disabled && !element.readOnly;
+				}
+				return element.isContentEditable;
+			};
+
+			const fallback = document.querySelector<HTMLElement>(
+				'input:not([type="hidden"]):not([disabled]):not([readonly]), textarea:not([disabled]):not([readonly]), [contenteditable=""], [contenteditable="true"]',
+			);
+			const target = isEditable(document.activeElement)
+				? document.activeElement
+				: fallback;
+
+			if (!isEditable(target)) {
+				return false;
+			}
+
+			target.focus();
+
+			if (
+				target instanceof HTMLInputElement ||
+				target instanceof HTMLTextAreaElement
+			) {
+				const start = target.selectionStart ?? target.value.length;
+				const end = target.selectionEnd ?? start;
+				target.setRangeText(value, start, end, "end");
+				target.dispatchEvent(new Event("input", { bubbles: true }));
+				target.dispatchEvent(new Event("change", { bubbles: true }));
+				return true;
+			}
+
+			const selection = window.getSelection();
+			if (selection && selection.rangeCount > 0) {
+				const range = selection.getRangeAt(0);
+				range.deleteContents();
+				range.insertNode(document.createTextNode(value));
+				range.collapse(false);
+				selection.removeAllRanges();
+				selection.addRange(range);
+			} else {
+				target.append(document.createTextNode(value));
+			}
+			target.dispatchEvent(
+				new InputEvent("input", {
+					bubbles: true,
+					data: value,
+					inputType: "insertText",
+				}),
+			);
+			return true;
+		}, text);
+
+		if (!inserted) {
+			await this.page.keyboard.type(text);
+		}
 	}
 
 	public async pressKey(key: string): Promise<void> {

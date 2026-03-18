@@ -239,6 +239,16 @@ public final class InputHandler implements Listener {
     private String extractAnvilInput(final InventoryClickEvent event) {
         final Inventory top = event.getView().getTopInventory();
 
+        final String renameText = extractRenameText(top);
+        if (renameText != null) {
+            return renameText;
+        }
+
+        final String fromInputSlot = extractDisplayText(top.getItem(0));
+        if (fromInputSlot != null && !fromInputSlot.isBlank()) {
+            return fromInputSlot;
+        }
+
         final String fromClicked = extractDisplayText(event.getCurrentItem());
         if (fromClicked != null && !fromClicked.isBlank()) {
             return fromClicked;
@@ -249,6 +259,19 @@ public final class InputHandler implements Listener {
             return fromOutputSlot;
         }
 
+        return null;
+    }
+
+    private String extractRenameText(final Inventory inventory) {
+        try {
+            final java.lang.reflect.Method method = inventory.getClass().getMethod("getRenameText");
+            final Object value = method.invoke(inventory);
+            if (value instanceof String text && !text.isBlank()) {
+                return text.trim();
+            }
+        } catch (final ReflectiveOperationException ignored) {
+            // Older/newer API variants may not expose rename text directly.
+        }
         return null;
     }
 
