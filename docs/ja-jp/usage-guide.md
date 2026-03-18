@@ -98,7 +98,7 @@ sequenceDiagram
 | `/mb info` | `/mb info` | 現在選択中スクリーンの詳細 | URL, 状態, サイズを確認 |
 | `/mb load [screen]` | `/mb load latest` | 指定スクリーンをロード | 省略時は選択中 |
 | `/mb unload [screen]` | `/mb unload` | 指定スクリーンをアンロード | 省略時は選択中 |
-| `/mb refill [screen]` | `/mb refill lobby` | 不足マップを補充 | 省略時は選択中 |
+| `/mb give-frame\|gif <screen> <tile-range>` | `/mb gif lobby 1-3` | 指定タイルの地図を再取得 | `all` / `odd` / `even` と1始まり範囲に対応 |
 | `/mb resize <screen> <w> <h>` | `/mb resize lobby 3 2` | 画面サイズを再構成 | URL/FPSは維持して再OPEN |
 | `/mb destroy` | `/mb destroy` | 現在選択中スクリーンを削除 | `delete` / `remove` エイリアスあり |
 | `/mb menu` / `/mb gui` | `/mb menu` | GUI メニューを開く | アイテム配布やFPS変更に便利 |

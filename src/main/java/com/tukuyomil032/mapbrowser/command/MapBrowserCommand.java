@@ -8,6 +8,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
+import java.util.TreeSet;
 import java.util.UUID;
 
 import org.bukkit.Bukkit;
@@ -81,7 +83,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             sendInfo(sender, "/mb menu|gui");
             sendInfo(sender, "/mb select <screen-id|screen-name>");
             sendInfo(sender, "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete|destroy [screen], /mb exit");
-            sendInfo(sender, "/mb refill [screen], /mb resize <screen> <w> <h>");
+            sendInfo(sender, "/mb give-frame|gif <screen> <tile-range>, /mb resize <screen> <w> <h>");
             sendInfo(sender, "/mb config simulate_particle <end_rod|flame>");
             sendInfo(sender, "/mb config language <en|ja>");
             sendInfo(sender, "/mb open <url>, /mb type <text>, /mb back, /mb forward, /mb reload, /mb fps <value>");
@@ -107,7 +109,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "load" -> handleLoad(sender, args);
             case "unload" -> handleUnload(sender, args);
             case "delete", "remove", "destroy" -> handleDestroy(sender, args);
-            case "refill" -> handleRefill(sender, args);
+            case "give-frame", "gif" -> handleGiveFrame(sender, args);
             case "resize" -> handleResize(sender, args);
             case "config" -> handleConfig(sender, args);
             case "give" -> handleGive(sender, args);
@@ -131,7 +133,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             final String[] args
     ) {
         if (args.length == 1) {
-            return Arrays.asList("create", "menu", "gui", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "load", "unload", "delete", "destroy", "refill", "resize", "config", "give", "exit", "admin");
+            return Arrays.asList("create", "menu", "gui", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "load", "unload", "delete", "destroy", "give-frame", "gif", "resize", "config", "give", "exit", "admin");
         }
         if (args.length == 2 && "create".equalsIgnoreCase(args[0])) {
             return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
@@ -142,8 +144,18 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if (args.length >= 4 && "create".equalsIgnoreCase(args[0])) {
             return List.of("--autofill");
         }
-        if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "destroy".equalsIgnoreCase(args[0]) || "refill".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]) || "load".equalsIgnoreCase(args[0]) || "unload".equalsIgnoreCase(args[0]))) {
+        if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "destroy".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]) || "load".equalsIgnoreCase(args[0]) || "unload".equalsIgnoreCase(args[0]) || "give-frame".equalsIgnoreCase(args[0]) || "gif".equalsIgnoreCase(args[0]))) {
             return screenNameSuggestions();
+        }
+        if (args.length == 3 && ("give-frame".equalsIgnoreCase(args[0]) || "gif".equalsIgnoreCase(args[0])) ) {
+            if (sender instanceof Player player) {
+                final Optional<Screen> target = resolveScreen(args[1], player);
+                if (target.isPresent()) {
+                    final int total = target.get().getMapIds().length;
+                    return List.of("all", "odd", "even", "1", "1-3", "1-" + total);
+                }
+            }
+            return List.of("all", "odd", "even", "1", "1-3");
         }
         if (args.length == 3 && "resize".equalsIgnoreCase(args[0])) {
             return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
@@ -634,53 +646,144 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         return true;
     }
 
-    private boolean handleRefill(final CommandSender sender, final String[] args) {
+    private boolean handleGiveFrame(final CommandSender sender, final String[] args) {
         if (!(sender instanceof Player player)) {
             sendError(sender, "Player only command.");
             return true;
         }
+        if (!plugin.getPermissionManager().has(sender, "mapbrowser.use")) {
+            sendError(sender, "No permission.");
+            return true;
+        }
 
-        final Optional<Screen> target = args.length >= 2
-                ? resolveScreen(args[1], player)
-                : plugin.getScreenManager().getSelected(player.getUniqueId());
+        if (args.length < 2) {
+            sendError(sender, "Usage: /mb give-frame <screen-id|screen-name> <tile-range>");
+            sendInfo(sender, "Example: /mb gif test 1-3");
+            sendInfo(sender, "Range format: all, odd, even, 1, 1-3, 1,3,5-8");
+            return true;
+        }
+
+        final Optional<Screen> target;
+        final String rangeExpr;
+        if (args.length == 2) {
+            target = plugin.getScreenManager().getSelected(player.getUniqueId());
+            rangeExpr = args[1];
+        } else {
+            target = resolveScreen(args[1], player);
+            rangeExpr = args[2];
+        }
+
         if (target.isEmpty()) {
-            sendError(sender, args.length >= 2 ? "Screen not found." : "No selected screen.");
+            sendError(sender, args.length == 2 ? "No selected screen." : "Screen not found.");
             return true;
         }
 
         final Screen screen = target.get();
-        final int[] mapIds = screen.getMapIds();
-        final boolean[] hasTile = new boolean[mapIds.length];
+        final int tileCount = screen.getMapIds().length;
+        if (tileCount <= 0) {
+            sendError(sender, "Screen has no map tiles.");
+            return true;
+        }
+
+        final Optional<List<Integer>> parsed = parseTileRange(rangeExpr, tileCount);
+        if (parsed.isEmpty()) {
+            sendError(sender, "Invalid tile range: " + rangeExpr);
+            sendInfo(sender, "Use all/odd/even or 1-based indexes. Example: all, 1-3, 1,4,6-8");
+            sendInfo(sender, "Valid tile range: 1-" + tileCount);
+            return true;
+        }
+
         final byte autoFillFlag = detectAutoFillPreference(player, screen);
-
-        for (final ItemStack stack : player.getInventory().getContents()) {
-            if (stack == null || stack.getType() != Material.FILLED_MAP || !stack.hasItemMeta()) {
-                continue;
-            }
-            if (!(stack.getItemMeta() instanceof MapMeta meta)) {
-                continue;
-            }
-            final String sid = meta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
-            final Integer idx = meta.getPersistentDataContainer().get(tileIndexKey, PersistentDataType.INTEGER);
-            if (sid == null || idx == null || !sid.equals(screen.getId().toString())) {
-                continue;
-            }
-            if (idx >= 0 && idx < hasTile.length) {
-                hasTile[idx] = true;
-            }
+        int supplied = 0;
+        for (final int tileIndex : parsed.get()) {
+            giveItemOrDrop(player, createScreenMapItem(screen, tileIndex, autoFillFlag));
+            supplied++;
         }
 
-        int missing = 0;
-        for (int i = 0; i < hasTile.length; i++) {
-            if (hasTile[i]) {
-                continue;
-            }
-            giveItemOrDrop(player, createScreenMapItem(screen, i, autoFillFlag));
-            missing++;
-        }
-
-        sendOk(sender, "Refill completed. Missing maps supplied: " + missing);
+        sendOk(sender, "Frame tiles supplied: " + supplied);
+        sendInfo(sender, "Screen: " + screen.getName() + " (" + screen.getId() + ")");
+        sendInfo(sender, "Tile range: " + rangeExpr + " (valid 1-" + tileCount + ")");
         return true;
+    }
+
+    private Optional<List<Integer>> parseTileRange(final String rangeExpr, final int tileCount) {
+        if (rangeExpr == null || rangeExpr.isBlank() || tileCount <= 0) {
+            return Optional.empty();
+        }
+
+        final String normalized = rangeExpr.trim().toLowerCase(Locale.ROOT);
+        if ("all".equals(normalized)) {
+            final ArrayList<Integer> all = new ArrayList<>(tileCount);
+            for (int i = 0; i < tileCount; i++) {
+                all.add(i);
+            }
+            return Optional.of(all);
+        }
+        if ("odd".equals(normalized) || "even".equals(normalized)) {
+            final boolean odd = "odd".equals(normalized);
+            final ArrayList<Integer> picked = new ArrayList<>();
+            for (int i = 1; i <= tileCount; i++) {
+                if (odd && (i % 2 == 1)) {
+                    picked.add(i - 1);
+                }
+                if (!odd && (i % 2 == 0)) {
+                    picked.add(i - 1);
+                }
+            }
+            return picked.isEmpty() ? Optional.empty() : Optional.of(picked);
+        }
+
+        final Set<Integer> selected = new TreeSet<>();
+        final String[] tokens = rangeExpr.replace(" ", "").split(",");
+        for (final String token : tokens) {
+            if (token.isBlank()) {
+                continue;
+            }
+
+            final int dash = token.indexOf('-');
+            if (dash >= 0) {
+                final String startRaw = token.substring(0, dash);
+                final String endRaw = token.substring(dash + 1);
+                if (startRaw.isBlank() || endRaw.isBlank()) {
+                    return Optional.empty();
+                }
+
+                final int start;
+                final int end;
+                try {
+                    start = Integer.parseInt(startRaw);
+                    end = Integer.parseInt(endRaw);
+                } catch (final NumberFormatException ex) {
+                    return Optional.empty();
+                }
+                if (start < 1 || end < 1 || start > tileCount || end > tileCount) {
+                    return Optional.empty();
+                }
+
+                final int from = Math.min(start, end);
+                final int to = Math.max(start, end);
+                for (int index = from; index <= to; index++) {
+                    selected.add(index - 1);
+                }
+                continue;
+            }
+
+            final int single;
+            try {
+                single = Integer.parseInt(token);
+            } catch (final NumberFormatException ex) {
+                return Optional.empty();
+            }
+            if (single < 1 || single > tileCount) {
+                return Optional.empty();
+            }
+            selected.add(single - 1);
+        }
+
+        if (selected.isEmpty()) {
+            return Optional.empty();
+        }
+        return Optional.of(new ArrayList<>(selected));
     }
 
     private boolean handleResize(final CommandSender sender, final String[] args) {

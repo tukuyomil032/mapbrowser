@@ -23,7 +23,7 @@ By default, browser rendering is isolated in a child process and restarted autom
 
 - live web page rendering on map-based screens
 - interaction flow: create/select/open URL/type/back/forward/reload/fps
-- screen lifecycle operations: load/unload/resize/refill/delete
+- screen lifecycle operations: load/unload/resize/give-frame/delete
 - delta frame optimization with full-frame fallback for heavy changes
 - storage backends: yaml and sqlite
 - velocity plugin messaging bridge: PING/OPEN_URL/RELOAD_SCREEN/SET_FPS/CLOSE_SCREEN/BACK_SCREEN/FORWARD_SCREEN
@@ -156,8 +156,8 @@ Important keys:
 - /mb info
 - /mb load [screen]
 - /mb unload [screen]
-- /mb delete|destroy [screen]
-- /mb refill [screen]
+- /mb delete [screen]
+- /mb give-frame|gif <screen> <tile-range>
 - /mb resize <screen> <w> <h>
 - /mb config simulate_particle <end_rod|flame>
 - /mb config language <en|ja>

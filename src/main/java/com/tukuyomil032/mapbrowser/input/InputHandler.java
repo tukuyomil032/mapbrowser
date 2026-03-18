@@ -364,6 +364,7 @@ public final class InputHandler implements Listener {
         }
 
         if (assembledScreens.contains(screenId)) {
+            event.getPlayer().sendMessage("This screen is already auto-assembled.");
             return;
         }
 
@@ -555,6 +556,11 @@ public final class InputHandler implements Listener {
             return;
         }
 
+        int placed = 0;
+        int alreadyPlaced = 0;
+        int blocked = 0;
+        int failed = 0;
+
         for (int row = 0; row < height; row++) {
             for (int col = 0; col < width; col++) {
                 final int index = row * width + col;
@@ -564,27 +570,78 @@ public final class InputHandler implements Listener {
                 if (backingLoc.getBlock().getType().isAir()) {
                     backingLoc.getBlock().setType(Material.SMOOTH_STONE, false);
                 }
+
                 final ItemFrame frame = findOrCreateFrame(world, targetLoc, facing);
                 if (frame == null) {
+                    failed++;
                     continue;
                 }
+
+                final ItemStack current = frame.getItem();
+                if (isTileAlreadyPlaced(current, screen.getId(), index)) {
+                    alreadyPlaced++;
+                    continue;
+                }
+                if (isFrameOccupiedByOtherContent(current, screen.getId(), index)) {
+                    blocked++;
+                    continue;
+                }
+
                 frame.setItem(createScreenMapItem(screen, index), false);
+                placed++;
             }
         }
 
-        assembledScreens.add(screen.getId());
-        player.sendMessage("MapBrowser auto-assembly completed: " + width + "x" + height);
+        final int expected = width * height;
+        final boolean completed = (placed + alreadyPlaced) == expected && blocked == 0 && failed == 0;
+        if (completed) {
+            assembledScreens.add(screen.getId());
+            player.sendMessage("MapBrowser auto-assembly completed: " + width + "x" + height);
+            return;
+        }
+
+        assembledScreens.remove(screen.getId());
+        player.sendMessage("MapBrowser auto-assembly partial: placed=" + placed
+                + " already=" + alreadyPlaced
+                + " blocked=" + blocked
+                + " failed=" + failed + ".");
+        player.sendMessage("Clear blocked frames and place starter map again to retry.");
     }
 
     private ItemFrame findOrCreateFrame(final World world, final Location loc, final BlockFace facing) {
-        final Collection<Entity> nearby = world.getNearbyEntities(loc, 0.6, 0.6, 0.6);
+        final BoundingBox box = BoundingBox.of(loc.getBlock(), loc.getBlock());
+        final Collection<Entity> nearby = world.getNearbyEntities(box, entity -> entity instanceof ItemFrame);
         for (final Entity entity : nearby) {
             if (entity instanceof ItemFrame frame && frame.getFacing() == facing) {
                 return frame;
             }
         }
 
-        return world.spawn(loc, ItemFrame.class, spawned -> spawned.setFacingDirection(facing, true));
+        try {
+            return world.spawn(loc, ItemFrame.class, spawned -> spawned.setFacingDirection(facing, true));
+        } catch (final RuntimeException ignored) {
+            return null;
+        }
+    }
+
+    private boolean isTileAlreadyPlaced(final ItemStack item, final UUID screenId, final int tileIndex) {
+        if (item == null || item.getType().isAir() || !item.hasItemMeta()) {
+            return false;
+        }
+        final ItemMeta meta = item.getItemMeta();
+        if (meta == null) {
+            return false;
+        }
+        final String sid = meta.getPersistentDataContainer().get(screenIdKey, PersistentDataType.STRING);
+        final Integer idx = meta.getPersistentDataContainer().get(tileIndexKey, PersistentDataType.INTEGER);
+        return screenId.toString().equals(sid) && idx != null && idx == tileIndex;
+    }
+
+    private boolean isFrameOccupiedByOtherContent(final ItemStack item, final UUID screenId, final int tileIndex) {
+        if (item == null || item.getType().isAir()) {
+            return false;
+        }
+        return !isTileAlreadyPlaced(item, screenId, tileIndex);
     }
 
     private int[] rightVector(final BlockFace facing) {

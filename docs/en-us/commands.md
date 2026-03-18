@@ -14,7 +14,7 @@ Base command:
 - /mb load [screen-id|screen-name|latest]
 - /mb unload [screen-id|screen-name|latest]
 - /mb delete|remove|destroy [screen-id|screen-name|latest]
-- /mb refill [screen-id|screen-name|latest]
+- /mb give-frame|gif <screen-id|screen-name|latest> <tile-range>
 - /mb resize <screen-id|screen-name|latest> <w> <h>
 - /mb exit
 
@@ -54,5 +54,7 @@ Base command:
 
 - Most commands are player-only.
 - Most commands target selected screen when screen argument is omitted.
+- Tile range supports `all`, `odd`, `even` and 1-based index expressions.
+- Examples: `all`, `odd`, `1`, `1-3`, `1,4,6-8`.
 - URL input is validated by security rules.
 - FPS must be in configured allowed range.

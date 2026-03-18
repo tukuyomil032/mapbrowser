@@ -14,7 +14,7 @@
 - /mb load [screen-id|screen-name|latest]
 - /mb unload [screen-id|screen-name|latest]
 - /mb delete|remove|destroy [screen-id|screen-name|latest]
-- /mb refill [screen-id|screen-name|latest]
+- /mb give-frame|gif <screen-id|screen-name|latest> <tile-range>
 - /mb resize <screen-id|screen-name|latest> <w> <h>
 - /mb exit
 
@@ -54,4 +54,6 @@
 
 - 多くのコマンドはプレイヤー実行前提です。
 - 画面引数を省略した場合は、選択中スクリーンが対象です。
+- タイル範囲は `all` / `odd` / `even` と1始まりの範囲表現に対応します。
+- 例: `all`, `odd`, `1`, `1-3`, `1,4,6-8`。
 - URL はセキュリティ設定で検証されます。
