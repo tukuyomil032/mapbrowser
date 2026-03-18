@@ -272,15 +272,15 @@ pnpm typecheck
 
 ## フェーズ状態（現在の開発フェーズ）
 
-> **現在: Phase 3 実装中（最適化・安定化）**
+> **現在: Phase 5 実装中（公開準備・Companion Mod連携仕上げ）**
 
 - [x] Phase 1: 映像表示 MVP（IPC 基盤 + MapPacket 送信 + 10 FPS 表示）
 - [x] Phase 2: インタラクション（クリック・URL 入力・操作アイテム）
-- [ ] Phase 3: 最適化・安定化（デルタ圧縮・YouTube・権限・永続化）
-- [ ] Phase 4: 音声・コンパニオン Mod
-- [ ] Phase 5: Velocity 対応・API 公開
+- [x] Phase 3: 最適化・安定化（デルタ圧縮・YouTube・権限・永続化）
+- [x] Phase 4: 音声・コンパニオン Mod（プラグイン側導線）
+- [ ] Phase 5: Velocity 対応・API 公開（最終ドキュメント/実機検証を継続）
 
-**現在は Phase 3 最適化タスクを優先して実装すること。**
+**現在は Phase 5 の仕上げ（公開仕様の固定、Companion Mod連携要件の確定）を優先して実装すること。**
 
 ---
 

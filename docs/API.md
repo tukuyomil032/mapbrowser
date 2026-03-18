@@ -98,12 +98,36 @@ out.flush();
 player.sendPluginMessage(plugin, "mapbrowser:velocity", bos.toByteArray());
 ```
 
+### Velocity STATUS decode example
+
+```java
+try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload))) {
+	String command = in.readUTF(); // STATUS
+
+	int screenCount = in.readInt();
+	boolean ipcConnected = in.readBoolean();
+	int onlinePlayers = in.readInt();
+
+	// Extended fields (newer servers)
+	String ipcHealthSummary = in.readUTF();
+	long inboundTotal = in.readLong();
+	long inboundFrame = in.readLong();
+	long inboundDelta = in.readLong();
+	String audioDiagnostics = in.readUTF();
+}
+```
+
+運用上の推奨:
+- 互換性のため、先頭3項目（`screenCount`, `ipcConnected`, `onlinePlayers`）は必ず読み取る。
+- 拡張項目は EOF ガードを入れて段階的に対応する。
+
 ### Companion Mod context
 
 - The backend plugin can forward `AUDIO_FRAME` payloads over plugin messaging.
 - Minecraft vanilla clients cannot decode these payloads as in-game audio.
 - A companion client-side mod is required to decode and play those packets spatially.
 - This repository currently provides the server-side transport and diagnostics path; client-side playback implementation and compatibility validation must be done with the companion mod side.
+- Companion Mod の詳細要件は `docs/companion_mods/REQUIREMENTS.md` を参照。
 
 ## Velocity Bridge Commands (Current)
 

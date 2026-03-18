@@ -3,6 +3,8 @@
 - English manual: [en-us/README.md](en-us/README.md)
 - Japanese manual: [ja-jp/README.md](ja-jp/README.md)
 - API draft: [API.md](API.md)
+- Companion Mod requirements: [companion_mods/REQUIREMENTS.md](companion_mods/REQUIREMENTS.md)
+- Companion Mod agent guide: [companion_mods/AGENTS.md](companion_mods/AGENTS.md)
 
 ## Docs Policy
 

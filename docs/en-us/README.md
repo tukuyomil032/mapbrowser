@@ -10,6 +10,7 @@ This directory contains the full user and operator documentation for MapBrowser.
 - [Architecture](architecture.md)
 - [Operations](operations.md)
 - [Troubleshooting](troubleshooting.md)
+- [Companion Mod requirements (developer)](../companion_mods/REQUIREMENTS.md)
 
 ## Audience
 
