@@ -28,6 +28,7 @@ youtube:
 audio:
   companion-mod-enabled: false
   channel: "mapbrowser:audio"
+  max-distance: 32
 
 items:
   pointer: FEATHER
@@ -39,6 +40,7 @@ items:
   url-bar: WRITABLE_BOOK
   text-input: WRITABLE_BOOK
   text-delete: SHEARS
+  text-enter: PRISMARINE_SHARD
   scroll: MAGMA_CREAM
   scroll-up: SLIME_BALL
   scroll-down: MAGMA_CREAM

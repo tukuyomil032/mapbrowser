@@ -47,7 +47,7 @@ public final class MapBrowserPlugin extends JavaPlugin {
         saveDefaultConfig();
 
         this.dataStore = new DataStore(this);
-        this.permissionManager = new PermissionManager();
+        this.permissionManager = new PermissionManager(this);
         this.frameRenderer = new FrameRenderer(this);
         this.screenManager = new ScreenManager(this);
         this.browserIPCClient = new BrowserIPCClient(this);

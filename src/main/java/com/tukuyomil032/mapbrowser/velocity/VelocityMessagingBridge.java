@@ -64,6 +64,17 @@ public final class VelocityMessagingBridge implements PluginMessageListener {
                 final String screenIdRaw = in.readUTF();
                 final String url = in.readUTF();
                 handleOpenUrl(player, screenIdRaw, url);
+                return;
+            }
+            if ("RELOAD_SCREEN".equalsIgnoreCase(command)) {
+                final String screenIdRaw = in.readUTF();
+                handleReloadScreen(player, screenIdRaw);
+                return;
+            }
+            if ("SET_FPS".equalsIgnoreCase(command)) {
+                final String screenIdRaw = in.readUTF();
+                final int fps = in.readInt();
+                handleSetFps(player, screenIdRaw, fps);
             }
         } catch (final IOException ex) {
             plugin.getLogger().log(Level.WARNING, "Failed to decode velocity message: {0}", ex.getMessage());
@@ -108,6 +119,48 @@ public final class VelocityMessagingBridge implements PluginMessageListener {
 
         plugin.getService().openUrl(screenId, validated.valueOrReason());
         plugin.getLogger().log(Level.INFO, "Velocity OPEN_URL accepted: {0} -> {1}", new Object[]{screenId, validated.valueOrReason()});
+        sendStatus(player);
+    }
+
+    private void handleReloadScreen(final Player player, final String screenIdRaw) {
+        final UUID screenId;
+        try {
+            screenId = UUID.fromString(screenIdRaw);
+        } catch (final IllegalArgumentException ex) {
+            plugin.getLogger().log(Level.WARNING, "Velocity RELOAD_SCREEN rejected: invalid screenId {0}", screenIdRaw);
+            return;
+        }
+
+        if (!plugin.getService().reload(screenId)) {
+            plugin.getLogger().log(Level.WARNING, "Velocity RELOAD_SCREEN rejected: screen not found {0}", screenId);
+            return;
+        }
+
+        plugin.getLogger().log(Level.INFO, "Velocity RELOAD_SCREEN accepted: {0}", screenId);
+        sendStatus(player);
+    }
+
+    private void handleSetFps(final Player player, final String screenIdRaw, final int fps) {
+        final UUID screenId;
+        try {
+            screenId = UUID.fromString(screenIdRaw);
+        } catch (final IllegalArgumentException ex) {
+            plugin.getLogger().log(Level.WARNING, "Velocity SET_FPS rejected: invalid screenId {0}", screenIdRaw);
+            return;
+        }
+
+        final int maxFps = plugin.getConfig().getInt("screen.max-fps", 30);
+        if (fps < 1 || fps > maxFps) {
+            plugin.getLogger().log(Level.WARNING, "Velocity SET_FPS rejected: invalid fps {0}", fps);
+            return;
+        }
+
+        if (!plugin.getService().setFps(screenId, fps)) {
+            plugin.getLogger().log(Level.WARNING, "Velocity SET_FPS rejected: screen not found {0}", screenId);
+            return;
+        }
+
+        plugin.getLogger().log(Level.INFO, "Velocity SET_FPS accepted: {0} -> {1}", new Object[]{screenId, fps});
         sendStatus(player);
     }
 }

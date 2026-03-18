@@ -6,7 +6,7 @@ main: com.tukuyomil032.mapbrowser.MapBrowserPlugin
 api-version: '1.21.11'
 authors: [tukuyomil032]
 description: In-game web browser rendering plugin for Minecraft map screens.
-softdepend: [PacketEvents, AnvilGUI]
+softdepend: [PacketEvents, AnvilGUI, LuckPerms, Vault]
 
 commands:
   mapbrowser:

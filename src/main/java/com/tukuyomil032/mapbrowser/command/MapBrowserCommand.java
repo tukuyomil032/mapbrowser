@@ -47,6 +47,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
     private static final String MENU_TITLE = "MapBrowser Menu";
 
     private final MapBrowserPlugin plugin;
+    private final HashMap<UUID, Integer> perfBenchTaskIds;
     private final NamespacedKey toolKey;
     private final NamespacedKey menuActionKey;
     private final NamespacedKey screenIdKey;
@@ -58,6 +59,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
      */
     public MapBrowserCommand(final MapBrowserPlugin plugin) {
         this.plugin = plugin;
+        this.perfBenchTaskIds = new HashMap<>();
         this.toolKey = new NamespacedKey(plugin, "tool");
         this.menuActionKey = new NamespacedKey(plugin, "menu-action");
         this.screenIdKey = new NamespacedKey(plugin, "screen-id");
@@ -78,13 +80,13 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             sendInfo(sender, "/mb create <w> <h> [name] [--autofill]");
             sendInfo(sender, "/mb menu|gui");
             sendInfo(sender, "/mb select <screen-id|screen-name>");
-            sendInfo(sender, "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete [screen], /mb exit");
+            sendInfo(sender, "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete|destroy [screen], /mb exit");
             sendInfo(sender, "/mb refill [screen], /mb resize <screen> <w> <h>");
             sendInfo(sender, "/mb config simulate_particle <end_rod|flame>");
             sendInfo(sender, "/mb config language <en|ja>");
             sendInfo(sender, "/mb open <url>, /mb type <text>, /mb back, /mb forward, /mb reload, /mb fps <value>");
-            sendInfo(sender, "/mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|scroll>");
-            sendInfo(sender, "/mb admin status|deps|stop <screenId>");
+            sendInfo(sender, "/mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll>");
+            sendInfo(sender, "/mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>");
             sendLine(sender);
             return true;
         }
@@ -104,11 +106,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "info" -> handleInfo(sender);
             case "load" -> handleLoad(sender, args);
             case "unload" -> handleUnload(sender, args);
-            case "delete" -> handleDestroy(sender, args);
-            case "remove", "destroy" -> {
-                sendError(sender, "Use /mb delete.");
-                yield true;
-            }
+            case "delete", "remove", "destroy" -> handleDestroy(sender, args);
             case "refill" -> handleRefill(sender, args);
             case "resize" -> handleResize(sender, args);
             case "config" -> handleConfig(sender, args);
@@ -133,7 +131,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             final String[] args
     ) {
         if (args.length == 1) {
-            return Arrays.asList("create", "menu", "gui", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "load", "unload", "delete", "refill", "resize", "config", "give", "exit", "admin");
+            return Arrays.asList("create", "menu", "gui", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "load", "unload", "delete", "destroy", "refill", "resize", "config", "give", "exit", "admin");
         }
         if (args.length == 2 && "create".equalsIgnoreCase(args[0])) {
             return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
@@ -144,7 +142,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if (args.length >= 4 && "create".equalsIgnoreCase(args[0])) {
             return List.of("--autofill");
         }
-        if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "refill".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]) || "load".equalsIgnoreCase(args[0]) || "unload".equalsIgnoreCase(args[0]))) {
+        if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "destroy".equalsIgnoreCase(args[0]) || "refill".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]) || "load".equalsIgnoreCase(args[0]) || "unload".equalsIgnoreCase(args[0]))) {
             return screenNameSuggestions();
         }
         if (args.length == 3 && "resize".equalsIgnoreCase(args[0])) {
@@ -174,10 +172,16 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return values;
         }
         if (args.length == 2 && "give".equalsIgnoreCase(args[0])) {
-            return Arrays.asList("pointer-left", "pointer-right", "pointer", "back", "forward", "reload", "url-bar", "text-input", "text-delete", "scroll", "scroll-up", "scroll-down");
+            return Arrays.asList("pointer-left", "pointer-right", "pointer", "back", "forward", "reload", "url-bar", "text-input", "text-delete", "text-enter", "scroll", "scroll-up", "scroll-down");
         }
         if (args.length == 2 && "admin".equalsIgnoreCase(args[0])) {
-            return List.of("status", "deps", "stop");
+            return List.of("status", "deps", "reload", "perf", "perfbench", "stop");
+        }
+        if (args.length == 3 && "admin".equalsIgnoreCase(args[0]) && ("stop".equalsIgnoreCase(args[1]) || "perf".equalsIgnoreCase(args[1]))) {
+            return screenNameSuggestions();
+        }
+        if (args.length == 3 && "admin".equalsIgnoreCase(args[0]) && "perfbench".equalsIgnoreCase(args[1])) {
+            return List.of("30", "60", "120");
         }
         return List.of();
     }
@@ -213,6 +217,15 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         final int maxHeight = plugin.getConfig().getInt("screen.max-height", 8);
         if (width <= 0 || height <= 0 || width > maxWidth || height > maxHeight) {
             sendError(sender, "Screen size must be 1.." + maxWidth + " x 1.." + maxHeight);
+            return true;
+        }
+
+        final int maxScreensPerWorld = plugin.getConfig().getInt("screen.max-screens-per-world", 8);
+        final long screensInWorld = plugin.getScreenManager().getAllScreens().stream()
+                .filter(screen -> screen.getWorldName().equals(player.getWorld().getName()))
+                .count();
+        if (screensInWorld >= maxScreensPerWorld) {
+            sendError(sender, "Screen limit reached in this world (max=" + maxScreensPerWorld + ").");
             return true;
         }
 
@@ -283,6 +296,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         menu.setItem(25, createMenuItem(Material.BOW, "Give Back", "give-back", "Browser back"));
         menu.setItem(26, createMenuItem(Material.ARROW, "Give Forward", "give-forward", "Browser forward"));
         menu.setItem(27, createMenuItem(Material.COMPASS, "Give Reload", "give-reload", "Browser reload"));
+        menu.setItem(28, createMenuItem(Material.PRISMARINE_SHARD, "Give Enter", "give-text-enter", "Send Enter key"));
 
         menu.setItem(31, createMenuItem(Material.REDSTONE, "FPS 5", "fps-5", "Low load mode"));
         menu.setItem(32, createMenuItem(Material.GLOWSTONE_DUST, "FPS 10", "fps-10", "Balanced mode"));
@@ -812,7 +826,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|scroll>");
+            sendError(sender, "Usage: /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll>");
             return true;
         }
 
@@ -827,6 +841,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "url-bar" -> "items.url-bar";
             case "text-input" -> "items.text-input";
             case "text-delete" -> "items.text-delete";
+            case "text-enter" -> "items.text-enter";
             case "scroll" -> "items.scroll";
             case "scroll-up" -> "items.scroll-up";
             case "scroll-down" -> "items.scroll-down";
@@ -882,6 +897,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "url-bar" -> Material.WRITABLE_BOOK;
             case "text-input" -> Material.WRITABLE_BOOK;
             case "text-delete" -> Material.SHEARS;
+            case "text-enter" -> Material.PRISMARINE_SHARD;
             case "scroll", "scroll-down" -> Material.MAGMA_CREAM;
             case "scroll-up" -> Material.SLIME_BALL;
             default -> Material.FEATHER;
@@ -908,6 +924,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 case "url-bar" -> "URL入力";
                 case "text-input" -> "テキスト入力";
                 case "text-delete" -> "テキスト削除";
+                case "text-enter" -> "Enter入力";
                 case "scroll", "scroll-up", "scroll-down" -> "スクロール";
                 default -> "ブラウザ操作";
             };
@@ -921,6 +938,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "url-bar" -> "Browser URL Bar";
             case "text-input" -> "Browser Text Input";
             case "text-delete" -> "Browser Text Delete";
+            case "text-enter" -> "Browser Enter";
             case "scroll", "scroll-up", "scroll-down" -> "Browser Scroll";
             default -> "Browser Control";
         };
@@ -937,6 +955,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 case "url-bar" -> "右クリックでURL入力を開く";
                 case "text-input" -> "右クリックで文字入力を開く";
                 case "text-delete" -> "右クリックで1文字削除、Shift+右クリックで全削除";
+                case "text-enter" -> "右クリックでEnterキーを送信";
                 case "scroll" -> "右クリックで下へ、Shift+右クリックで上へスクロール";
                 case "scroll-up" -> "右クリックで上へスクロール";
                 case "scroll-down" -> "右クリックで下へスクロール";
@@ -952,6 +971,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "url-bar" -> "Right-click to open URL input";
             case "text-input" -> "Right-click to open text input";
             case "text-delete" -> "Right-click to backspace, Shift+right-click to clear all";
+            case "text-enter" -> "Right-click to send Enter key";
             case "scroll" -> "Right-click scroll down, Shift+right-click scroll up";
             case "scroll-up" -> "Right-click to scroll up";
             case "scroll-down" -> "Right-click to scroll down";
@@ -968,13 +988,16 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb admin status|deps|stop <screenId>");
+            sendError(sender, "Usage: /mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>");
             return true;
         }
 
         if ("status".equalsIgnoreCase(args[1])) {
             sendHeader(sender, "MAPBROWSER STATUS");
             sendInfo(sender, "IPC connected: " + plugin.getBrowserIPCClient().isConnected());
+            sendInfo(sender, "IPC health: " + plugin.getBrowserIPCClient().healthSummary());
+            final long readyAge = plugin.getBrowserIPCClient().secondsSinceReady();
+            sendInfo(sender, "READY age: " + (readyAge >= 0 ? readyAge + "s" : "never"));
             sendInfo(sender, "Screens: " + plugin.getScreenManager().getAllScreens().size());
             sendLine(sender);
             return true;
@@ -986,6 +1009,96 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             sendInfo(sender, "AnvilGUI (softdepend): " + pluginState("AnvilGUI"));
             sendInfo(sender, "spark (optional): " + pluginState("spark"));
             sendLine(sender);
+            return true;
+        }
+
+        if ("reload".equalsIgnoreCase(args[1])) {
+            plugin.reloadConfig();
+            sendOk(sender, "Config reloaded.");
+            sendInfo(sender, "storage=" + plugin.getConfig().getString("storage", "yaml"));
+            sendInfo(sender, "render-distance=" + plugin.getConfig().getInt("screen.render-distance", 64));
+            return true;
+        }
+
+        if ("perf".equalsIgnoreCase(args[1])) {
+            final var ipcStats = plugin.getBrowserIPCClient().snapshotStats();
+            final var screenStats = plugin.getBrowserIPCClient().snapshotScreenStats();
+            final long uptime = Math.max(1L, ipcStats.uptimeSeconds());
+            final long totalInbound = ipcStats.inboundTotal();
+            final long perSecond = totalInbound / uptime;
+            final Runtime runtime = Runtime.getRuntime();
+            final long usedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024L * 1024L);
+            final long maxMb = runtime.maxMemory() / (1024L * 1024L);
+
+            sendHeader(sender, "MAPBROWSER PERF");
+            sendInfo(sender, "uptime=" + uptime + "s inbound=" + totalInbound + " msg(" + perSecond + "/s)");
+            sendInfo(sender, "frames(full=" + ipcStats.inboundFrame() + ", delta=" + ipcStats.inboundDelta() + ") errors=" + ipcStats.inboundErrorEvent());
+            sendInfo(sender, "tps=" + readCurrentTpsText());
+            sendInfo(sender, "memory=" + usedMb + "MB/" + maxMb + "MB screens=" + plugin.getScreenManager().getAllScreens().size());
+            sendInfo(sender, "audio=" + plugin.getAudioBridge().diagnostics());
+
+            if (args.length >= 3 && sender instanceof Player player) {
+                final Optional<Screen> target = resolveScreen(args[2], player);
+                if (target.isEmpty()) {
+                    sendError(sender, "Screen not found for perf detail: " + args[2]);
+                    sendLine(sender);
+                    return true;
+                }
+                final Screen screen = target.get();
+                final var detail = screenStats.get(screen.getId());
+                sendInfo(sender, "screen=" + screen.getName() + " id=" + screen.getId());
+                sendInfo(sender, "state=" + screen.getState() + " size=" + screen.getWidth() + "x" + screen.getHeight() + " fps=" + screen.getFps());
+                if (detail == null) {
+                    sendInfo(sender, "ipc(per-screen)=no data yet");
+                } else {
+                    final long since = detail.lastInboundAtEpochMillis() <= 0L
+                            ? -1L
+                            : Math.max(0L, (System.currentTimeMillis() - detail.lastInboundAtEpochMillis()) / 1000L);
+                    sendInfo(sender, "ipc(per-screen) full=" + detail.frameCount() + " delta=" + detail.deltaCount() + " err=" + detail.errorCount() + " last=" + (since >= 0 ? since + "s" : "never"));
+                }
+                sendLine(sender);
+                return true;
+            }
+
+            final List<Screen> topScreens = plugin.getScreenManager().getAllScreens().stream()
+                    .sorted((left, right) -> Long.compare(
+                            totalFrames(screenStats.get(right.getId())),
+                            totalFrames(screenStats.get(left.getId()))
+                    ))
+                    .limit(5)
+                    .toList();
+            for (final Screen screen : topScreens) {
+                final var detail = screenStats.get(screen.getId());
+                final long full = detail == null ? 0L : detail.frameCount();
+                final long delta = detail == null ? 0L : detail.deltaCount();
+                final long errors = detail == null ? 0L : detail.errorCount();
+                sendInfo(sender, "screen=" + screen.getName() + " frames=" + (full + delta) + " (f=" + full + " d=" + delta + ") err=" + errors);
+            }
+            sendLine(sender);
+            return true;
+        }
+
+        if ("perfbench".equalsIgnoreCase(args[1])) {
+            if (!(sender instanceof Player player)) {
+                sendError(sender, "Player only command.");
+                return true;
+            }
+            final int durationSec;
+            if (args.length >= 3) {
+                try {
+                    durationSec = Integer.parseInt(args[2]);
+                } catch (final NumberFormatException ex) {
+                    sendError(sender, "Duration must be integer seconds.");
+                    return true;
+                }
+            } else {
+                durationSec = 30;
+            }
+            if (durationSec < 5 || durationSec > 600) {
+                sendError(sender, "Duration must be 5..600 seconds.");
+                return true;
+            }
+            startPerfBench(player, durationSec);
             return true;
         }
 
@@ -1225,6 +1338,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "give-reload" -> "mb give reload";
             case "give-text-input" -> "mb give text-input";
             case "give-text-delete" -> "mb give text-delete";
+            case "give-text-enter" -> "mb give text-enter";
             case "give-scroll" -> "mb give scroll";
             case "give-scroll-up" -> "mb give scroll-up";
             case "give-scroll-down" -> "mb give scroll-down";
@@ -1240,6 +1354,100 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
     private void runAsPlayerCommand(final Player player, final String commandLine) {
         Bukkit.getScheduler().runTask(plugin, () -> player.performCommand(commandLine));
+    }
+
+    private static long totalFrames(final com.tukuyomil032.mapbrowser.ipc.BrowserIPCClient.ScreenIpcStatsSnapshot snapshot) {
+        if (snapshot == null) {
+            return 0L;
+        }
+        return snapshot.frameCount() + snapshot.deltaCount();
+    }
+
+    private String readCurrentTpsText() {
+        try {
+            final double[] tps = Bukkit.getTPS();
+            if (tps == null || tps.length == 0) {
+                return "N/A";
+            }
+            return String.format(java.util.Locale.ROOT, "%.2f", tps[0]);
+        } catch (final Throwable ignored) {
+            return "N/A";
+        }
+    }
+
+    private void startPerfBench(final Player player, final int durationSec) {
+        final UUID playerId = player.getUniqueId();
+        final Integer existingTaskId = perfBenchTaskIds.remove(playerId);
+        if (existingTaskId != null) {
+            Bukkit.getScheduler().cancelTask(existingTaskId);
+        }
+
+        final var startStats = plugin.getBrowserIPCClient().snapshotStats();
+        final long startedAt = System.currentTimeMillis();
+        final double[] samples = new double[durationSec];
+        final int[] sampleIndex = {0};
+
+        sendHeader(player, "MAPBROWSER PERFBENCH");
+        sendInfo(player, "Duration: " + durationSec + "s");
+        sendInfo(player, "Collecting TPS samples...");
+        sendLine(player);
+
+        final int taskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
+            if (!player.isOnline()) {
+                final Integer removed = perfBenchTaskIds.remove(playerId);
+                if (removed != null) {
+                    Bukkit.getScheduler().cancelTask(removed);
+                }
+                return;
+            }
+
+            final int index = sampleIndex[0];
+            if (index >= durationSec) {
+                final Integer removed = perfBenchTaskIds.remove(playerId);
+                if (removed != null) {
+                    Bukkit.getScheduler().cancelTask(removed);
+                }
+
+                final var endStats = plugin.getBrowserIPCClient().snapshotStats();
+                final long elapsedSec = Math.max(1L, (System.currentTimeMillis() - startedAt) / 1000L);
+                double min = 20.0;
+                double max = 0.0;
+                double sum = 0.0;
+                for (final double sample : samples) {
+                    min = Math.min(min, sample);
+                    max = Math.max(max, sample);
+                    sum += sample;
+                }
+                final double avg = sum / samples.length;
+
+                final long frameDelta = Math.max(0L, endStats.inboundFrame() - startStats.inboundFrame());
+                final long deltaDelta = Math.max(0L, endStats.inboundDelta() - startStats.inboundDelta());
+
+                sendHeader(player, "MAPBROWSER PERFBENCH RESULT");
+                sendInfo(player, String.format(java.util.Locale.ROOT, "tps avg=%.2f min=%.2f max=%.2f", avg, min, max));
+                sendInfo(player, "elapsed=" + elapsedSec + "s fullFrames=" + frameDelta + " deltaFrames=" + deltaDelta);
+                sendInfo(player, "frames/sec=" + ((frameDelta + deltaDelta) / elapsedSec));
+                sendLine(player);
+                return;
+            }
+
+            samples[index] = readCurrentTpsValue();
+            sampleIndex[0] = index + 1;
+        }, 20L, 20L);
+
+        perfBenchTaskIds.put(playerId, taskId);
+    }
+
+    private double readCurrentTpsValue() {
+        try {
+            final double[] tps = Bukkit.getTPS();
+            if (tps == null || tps.length == 0) {
+                return 20.0;
+            }
+            return Math.max(0.0, tps[0]);
+        } catch (final Throwable ignored) {
+            return 20.0;
+        }
     }
 
     private String pluginState(final String pluginName) {

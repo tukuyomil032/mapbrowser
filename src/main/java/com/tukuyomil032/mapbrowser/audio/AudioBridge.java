@@ -10,4 +10,11 @@ public interface AudioBridge {
      * Publishes encoded audio frame for a screen.
      */
     void publishFrame(UUID screenId, byte[] opusFrame, int sampleRate);
+
+    /**
+     * Returns diagnostics summary for admin/perf output.
+     */
+    default String diagnostics() {
+        return "audio=disabled";
+    }
 }

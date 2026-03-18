@@ -172,6 +172,13 @@ public final class InputHandler implements Listener {
                 plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Backspace");
             }
             event.setCancelled(true);
+            return;
+        }
+
+        if (matchesTool(heldItem, "text-enter", "items.text-enter", Material.PRISMARINE_SHARD)) {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
+            plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Enter");
+            event.setCancelled(true);
         }
     }
 
@@ -710,6 +717,9 @@ public final class InputHandler implements Listener {
         if (matchesTool(held, "text-delete", "items.text-delete", Material.SHEARS)) {
             return Optional.of(ToolAction.TEXT_DELETE);
         }
+        if (matchesTool(held, "text-enter", "items.text-enter", Material.PRISMARINE_SHARD)) {
+            return Optional.of(ToolAction.TEXT_ENTER);
+        }
         if (matchesTool(held, "scroll", "items.scroll", Material.MAGMA_CREAM)) {
             return Optional.of(ToolAction.SCROLL);
         }
@@ -744,6 +754,7 @@ public final class InputHandler implements Listener {
                     plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Backspace");
                 }
             }
+            case TEXT_ENTER -> plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Enter");
             case SCROLL -> {
                 final int delta = player.isSneaking() ? -300 : 300;
                 plugin.getBrowserIPCClient().sendScroll(screen.getId(), delta);
@@ -827,6 +838,7 @@ public final class InputHandler implements Listener {
         URL_BAR,
         TEXT_INPUT,
         TEXT_DELETE,
+        TEXT_ENTER,
         SCROLL
     }
 

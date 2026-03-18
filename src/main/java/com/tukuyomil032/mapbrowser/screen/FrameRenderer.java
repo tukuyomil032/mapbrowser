@@ -288,6 +288,24 @@ public final class FrameRenderer {
         return tileRevisions[tileIndex];
     }
 
+    private boolean isWithinRenderDistance(final Player player, final Screen screen) {
+        if (!player.getWorld().getName().equals(screen.getWorldName())) {
+            return false;
+        }
+
+        final int configured = plugin.getConfig().getInt("screen.render-distance", 64);
+        if (configured <= 0) {
+            return true;
+        }
+
+        final double dx = player.getLocation().getX() - screen.getOriginX();
+        final double dy = player.getLocation().getY() - screen.getOriginY();
+        final double dz = player.getLocation().getZ() - screen.getOriginZ();
+        final double distanceSquared = (dx * dx) + (dy * dy) + (dz * dz);
+        final double maxDistanceSquared = (double) configured * (double) configured;
+        return distanceSquared <= maxDistanceSquared;
+    }
+
     private DirtyRect tileDirtyRect(final Screen screen, final int tileIndex) {
         final DirtyRect[] dirtyRects = ensureTileDirtyRects(screen);
         if (tileIndex < 0 || tileIndex >= dirtyRects.length) {
@@ -323,8 +341,13 @@ public final class FrameRenderer {
                 return;
             }
 
-            final int revision = tileRevision(screen, tileIndex);
             final UUID playerId = player.getUniqueId();
+            if (!isWithinRenderDistance(player, screen)) {
+                renderedRevisionByPlayer.remove(playerId);
+                return;
+            }
+
+            final int revision = tileRevision(screen, tileIndex);
             final Integer renderedRevision = renderedRevisionByPlayer.get(playerId);
             if (renderedRevision != null && renderedRevision == revision) {
                 return;

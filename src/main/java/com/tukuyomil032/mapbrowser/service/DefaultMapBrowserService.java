@@ -1,11 +1,11 @@
 package com.tukuyomil032.mapbrowser.service;
 
-import com.tukuyomil032.mapbrowser.MapBrowserPlugin;
-import com.tukuyomil032.mapbrowser.screen.Screen;
-
 import java.util.Collection;
 import java.util.Optional;
 import java.util.UUID;
+
+import com.tukuyomil032.mapbrowser.MapBrowserPlugin;
+import com.tukuyomil032.mapbrowser.screen.Screen;
 
 /**
  * Default implementation of service boundary.
@@ -45,5 +45,52 @@ public final class DefaultMapBrowserService implements MapBrowserService {
             screen.setCurrentUrl(url);
             plugin.getBrowserIPCClient().sendNavigate(screen.getId(), url);
         });
+    }
+
+    /**
+     * Requests page reload for a screen.
+     */
+    @Override
+    public boolean reload(final UUID screenId) {
+        return plugin.getScreenManager().getScreen(screenId).map(screen -> {
+            plugin.getScreenManager().ensureLoaded(screen.getId());
+            plugin.getBrowserIPCClient().sendReload(screen.getId());
+            return true;
+        }).orElse(false);
+    }
+
+    /**
+     * Requests FPS update for a screen.
+     */
+    @Override
+    public boolean setFps(final UUID screenId, final int fps) {
+        return plugin.getScreenManager().getScreen(screenId).map(screen -> {
+            screen.setFps(fps);
+            plugin.getScreenManager().ensureLoaded(screen.getId());
+            plugin.getBrowserIPCClient().sendSetFps(screen.getId(), fps);
+            return true;
+        }).orElse(false);
+    }
+
+    /**
+     * Requests browser close for a screen.
+     */
+    @Override
+    public boolean close(final UUID screenId) {
+        return plugin.getScreenManager().getScreen(screenId).map(screen -> {
+            plugin.getBrowserIPCClient().sendClose(screen.getId());
+            return true;
+        }).orElse(false);
+    }
+
+    /**
+     * Returns public status snapshot.
+     */
+    @Override
+    public ServiceStatus status() {
+        return new ServiceStatus(
+                plugin.getBrowserIPCClient().isConnected(),
+                plugin.getScreenManager().getAllScreens().size()
+        );
     }
 }

@@ -10,12 +10,16 @@ import java.nio.ByteBuffer;
 import java.nio.channels.ClosedChannelException;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Base64;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.logging.Level;
 
 import org.bukkit.Bukkit;
@@ -45,6 +49,15 @@ public final class BrowserIPCClient {
     private volatile Process rendererProcess;
     private volatile boolean stopping;
     private volatile long rendererStartEpochMillis;
+    private volatile long lastInboundEpochMillis;
+    private volatile long lastReadyEpochMillis;
+    private final long statsStartedEpochMillis = System.currentTimeMillis();
+    private final AtomicLong inboundTextCount = new AtomicLong(0L);
+    private final AtomicLong inboundBinaryCount = new AtomicLong(0L);
+    private final AtomicLong inboundFrameCount = new AtomicLong(0L);
+    private final AtomicLong inboundDeltaCount = new AtomicLong(0L);
+    private final AtomicLong inboundErrorEventCount = new AtomicLong(0L);
+    private final Map<UUID, ScreenIpcStatsCounter> screenStats = new ConcurrentHashMap<>();
 
     /**
      * Creates IPC client.
@@ -178,6 +191,75 @@ public final class BrowserIPCClient {
      */
     public boolean isConnected() {
         return socket != null && !socket.isOutputClosed();
+    }
+
+    /**
+     * Returns IPC health summary for admin diagnostics.
+     */
+    public String healthSummary() {
+        if (!isConnected()) {
+            return "disconnected";
+        }
+
+        final long ageSec = secondsSince(lastInboundEpochMillis);
+        if (ageSec < 0) {
+            return "connected (no inbound message yet)";
+        }
+        if (ageSec <= 30) {
+            return "healthy (last inbound " + ageSec + "s ago)";
+        }
+        return "stale (last inbound " + ageSec + "s ago)";
+    }
+
+    /**
+     * Returns seconds since last READY message, or -1 if never received.
+     */
+    public long secondsSinceReady() {
+        return secondsSince(lastReadyEpochMillis);
+    }
+
+    /**
+     * Returns immutable IPC stats snapshot.
+     */
+    public IpcStatsSnapshot snapshotStats() {
+        return new IpcStatsSnapshot(
+                statsStartedEpochMillis,
+                inboundTextCount.get(),
+                inboundBinaryCount.get(),
+                inboundFrameCount.get(),
+                inboundDeltaCount.get(),
+                inboundErrorEventCount.get(),
+                lastInboundEpochMillis,
+                lastReadyEpochMillis
+        );
+    }
+
+    /**
+     * Returns immutable per-screen IPC stats snapshot.
+     */
+    public Map<UUID, ScreenIpcStatsSnapshot> snapshotScreenStats() {
+        final HashMap<UUID, ScreenIpcStatsSnapshot> snapshot = new HashMap<>();
+        for (final Map.Entry<UUID, ScreenIpcStatsCounter> entry : screenStats.entrySet()) {
+            final ScreenIpcStatsCounter counter = entry.getValue();
+            snapshot.put(entry.getKey(), new ScreenIpcStatsSnapshot(
+                    counter.frameCount.get(),
+                    counter.deltaCount.get(),
+                    counter.errorCount.get(),
+                    counter.lastInboundAtEpochMillis.get()
+            ));
+        }
+        return Map.copyOf(snapshot);
+    }
+
+    private long secondsSince(final long timestamp) {
+        if (timestamp <= 0L) {
+            return -1L;
+        }
+        return Math.max(0L, (System.currentTimeMillis() - timestamp) / 1000L);
+    }
+
+    private ScreenIpcStatsCounter screenStats(final UUID screenId) {
+        return screenStats.computeIfAbsent(screenId, ignored -> new ScreenIpcStatsCounter());
     }
 
     private void startRendererProcess() {
@@ -345,18 +427,32 @@ public final class BrowserIPCClient {
     }
 
     private void onMessage(final String message) {
+        lastInboundEpochMillis = System.currentTimeMillis();
+        inboundTextCount.incrementAndGet();
         try {
             final JsonObject obj = JsonParser.parseString(message).getAsJsonObject();
             final String type = obj.get("type").getAsString();
 
             switch (type) {
-                case "READY" -> plugin.getLogger().info("browser-renderer is READY");
-                case "FRAME" -> handleFrame(obj);
-                case "DELTA_FRAME" -> handleDeltaFrame(obj);
+                case "READY" -> {
+                    lastReadyEpochMillis = System.currentTimeMillis();
+                    plugin.getLogger().info("browser-renderer is READY");
+                }
+                case "FRAME" -> {
+                    inboundFrameCount.incrementAndGet();
+                    handleFrame(obj);
+                }
+                case "DELTA_FRAME" -> {
+                    inboundDeltaCount.incrementAndGet();
+                    handleDeltaFrame(obj);
+                }
                 case "URL_CHANGED" -> handleUrlChanged(obj);
                 case "PAGE_LOADED" -> handlePageLoaded(obj);
                 case "AUDIO_FRAME" -> handleAudioFrame(obj);
-                case "ERROR" -> handleError(obj);
+                case "ERROR" -> {
+                    inboundErrorEventCount.incrementAndGet();
+                    handleError(obj);
+                }
                 default -> plugin.getLogger().log(Level.WARNING, "Unknown IPC message type: {0}", type);
             }
         } catch (final IllegalStateException ex) {
@@ -368,6 +464,9 @@ public final class BrowserIPCClient {
         if (payload == null || payload.length < 40) {
             return;
         }
+
+        lastInboundEpochMillis = System.currentTimeMillis();
+        inboundBinaryCount.incrementAndGet();
 
         try {
             final ByteBuffer buffer = ByteBuffer.wrap(payload);
@@ -398,6 +497,7 @@ public final class BrowserIPCClient {
             buffer.get(data);
 
             if (type == FRAME_TYPE_FULL) {
+                inboundFrameCount.incrementAndGet();
                 final int width = a & 0xFFFF;
                 final int height = (a >>> 16) & 0xFFFF;
                 if (width <= 0 || height <= 0) {
@@ -409,6 +509,7 @@ public final class BrowserIPCClient {
             }
 
             if (type == FRAME_TYPE_DELTA) {
+                inboundDeltaCount.incrementAndGet();
                 final int x = a;
                 final int y = b;
                 final int w = c;
@@ -423,6 +524,9 @@ public final class BrowserIPCClient {
 
     private void handleFrame(final JsonObject obj) {
         final UUID screenId = UUID.fromString(obj.get("screenId").getAsString());
+        final ScreenIpcStatsCounter stats = screenStats(screenId);
+        stats.frameCount.incrementAndGet();
+        stats.lastInboundAtEpochMillis.set(System.currentTimeMillis());
         final byte[] data = Base64.getDecoder().decode(obj.get("data").getAsString().getBytes(StandardCharsets.UTF_8));
         plugin.getScreenManager().getScreen(screenId)
                 .ifPresent(screen -> plugin.getFrameRenderer().renderFrame(screen, data));
@@ -430,6 +534,9 @@ public final class BrowserIPCClient {
 
     private void handleDeltaFrame(final JsonObject obj) {
         final UUID screenId = UUID.fromString(obj.get("screenId").getAsString());
+        final ScreenIpcStatsCounter stats = screenStats(screenId);
+        stats.deltaCount.incrementAndGet();
+        stats.lastInboundAtEpochMillis.set(System.currentTimeMillis());
         final byte[] data = Base64.getDecoder().decode(obj.get("data").getAsString().getBytes(StandardCharsets.UTF_8));
         final int x = obj.get("x").getAsInt();
         final int y = obj.get("y").getAsInt();
@@ -455,6 +562,9 @@ public final class BrowserIPCClient {
 
     private void handleError(final JsonObject obj) {
         final UUID screenId = UUID.fromString(obj.get("screenId").getAsString());
+        final ScreenIpcStatsCounter stats = screenStats(screenId);
+        stats.errorCount.incrementAndGet();
+        stats.lastInboundAtEpochMillis.set(System.currentTimeMillis());
         final String message = obj.get("message").getAsString();
         plugin.getScreenManager().getScreen(screenId)
                 .ifPresent(screen -> screen.setState(ScreenState.ERROR));
@@ -520,5 +630,51 @@ public final class BrowserIPCClient {
             }
             return CompletableFuture.completedFuture(null);
         }
+    }
+
+    /**
+     * Immutable stats snapshot for diagnostics.
+     */
+    public record IpcStatsSnapshot(
+            long startedAtEpochMillis,
+            long inboundText,
+            long inboundBinary,
+            long inboundFrame,
+            long inboundDelta,
+            long inboundErrorEvent,
+            long lastInboundAtEpochMillis,
+            long lastReadyAtEpochMillis
+    ) {
+        /**
+         * Returns elapsed seconds since stats collection started.
+         */
+        public long uptimeSeconds() {
+            return Math.max(0L, (System.currentTimeMillis() - startedAtEpochMillis) / 1000L);
+        }
+
+        /**
+         * Returns total inbound message count.
+         */
+        public long inboundTotal() {
+            return inboundText + inboundBinary;
+        }
+    }
+
+    /**
+     * Immutable per-screen IPC stats snapshot.
+     */
+    public record ScreenIpcStatsSnapshot(
+            long frameCount,
+            long deltaCount,
+            long errorCount,
+            long lastInboundAtEpochMillis
+    ) {
+    }
+
+    private static final class ScreenIpcStatsCounter {
+        private final AtomicLong frameCount = new AtomicLong(0L);
+        private final AtomicLong deltaCount = new AtomicLong(0L);
+        private final AtomicLong errorCount = new AtomicLong(0L);
+        private final AtomicLong lastInboundAtEpochMillis = new AtomicLong(0L);
     }
 }
