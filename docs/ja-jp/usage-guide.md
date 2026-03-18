@@ -92,10 +92,16 @@ sequenceDiagram
 
 | コマンド | 例 | 説明 | 備考 |
 |---|---|---|---|
-| `/mb create <w> <h> [name]` | `/mb create 2 2 test` | スクリーンを作成 | 実行者がプレイヤーである必要あり |
+| `/mb create <w> <h> [name] [--autofill]` | `/mb create 2 2 test --autofill` | スクリーンを作成 | 実行者がプレイヤーである必要あり |
+| `/mb select <screen-id\|screen-name\|latest>` | `/mb select latest` | 操作対象スクリーンを選択 | 省略時の対象解決に影響 |
 | `/mb list` | `/mb list` | スクリーン一覧を表示 | ID の確認に使う |
 | `/mb info` | `/mb info` | 現在選択中スクリーンの詳細 | URL, 状態, サイズを確認 |
-| `/mb destroy` | `/mb destroy` | 現在選択中スクリーンを削除 | 削除時にブラウザも CLOSE |
+| `/mb load [screen]` | `/mb load latest` | 指定スクリーンをロード | 省略時は選択中 |
+| `/mb unload [screen]` | `/mb unload` | 指定スクリーンをアンロード | 省略時は選択中 |
+| `/mb refill [screen]` | `/mb refill lobby` | 不足マップを補充 | 省略時は選択中 |
+| `/mb resize <screen> <w> <h>` | `/mb resize lobby 3 2` | 画面サイズを再構成 | URL/FPSは維持して再OPEN |
+| `/mb destroy` | `/mb destroy` | 現在選択中スクリーンを削除 | `delete` / `remove` エイリアスあり |
+| `/mb menu` / `/mb gui` | `/mb menu` | GUI メニューを開く | アイテム配布やFPS変更に便利 |
 
 ### 2) ブラウザ操作
 
@@ -117,10 +123,16 @@ sequenceDiagram
 有効な item:
 
 - `pointer`
+- `pointer-left`
+- `pointer-right`
 - `back`
 - `forward`
 - `reload`
 - `url-bar`
+- `text-input`
+- `text-delete`
+- `text-enter`
+- `scroll`
 - `scroll-up`
 - `scroll-down`
 
@@ -129,6 +141,10 @@ sequenceDiagram
 | コマンド | 例 | 説明 |
 |---|---|---|
 | `/mb admin status` | `/mb admin status` | IPC 接続状態とスクリーン数を確認 |
+| `/mb admin deps` | `/mb admin deps` | 依存プラグイン検出状態を確認 |
+| `/mb admin reload` | `/mb admin reload` | 設定再読込 |
+| `/mb admin perf [screen]` | `/mb admin perf latest` | フレーム統計を表示 |
+| `/mb admin perfbench <sec>` | `/mb admin perfbench 60` | 一定時間の性能ベンチ |
 | `/mb admin stop <screenId>` | `/mb admin stop 00000000-0000-0000-0000-000000000000` | 指定スクリーンのブラウザを停止 |
 
 ## アイテム操作ガイド
@@ -138,10 +154,16 @@ sequenceDiagram
 | 操作 | アイテム |
 |---|---|
 | pointer | FEATHER |
+| pointer-left | FEATHER |
+| pointer-right | FLINT |
 | back | BOW |
 | forward | ARROW |
 | reload | COMPASS |
-| url-bar | BOOK_AND_QUILL |
+| url-bar | WRITABLE_BOOK |
+| text-input | WRITABLE_BOOK |
+| text-delete | SHEARS |
+| text-enter | PRISMARINE_SHARD |
+| scroll | MAGMA_CREAM |
 | scroll-up | SLIME_BALL |
 | scroll-down | MAGMA_CREAM |
 
@@ -155,9 +177,12 @@ sequenceDiagram
 
 現時点の挙動は次のとおりです。
 
-- pointer クリックは現在「画面中央への左クリック」
+- pointer-left / pointer-right は額縁上のクリック座標に応じて送信
 - back, forward, reload, scroll は対応済み
 - url-bar は Anvil UI で URL 入力
+- text-input は Anvil UI で文字入力
+- text-delete は Backspace（Sneak時は Ctrl+A + Backspace）
+- text-enter は Enter キー入力
 - URL は security 設定でバリデーション
 
 ## 典型的な利用シナリオ

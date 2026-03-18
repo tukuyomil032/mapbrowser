@@ -40,12 +40,30 @@ Main file: src/main/resources/config.yml
 - sample-rate: sample rate for forwarded Opus frames
 - frame-interval-ms: synthetic audio frame cadence in milliseconds
 - test-opus-base64: when set, renderer emits periodic Opus test frames
+- max-distance: server-side distance guard for forwarding
 
 ## items
 
 Material mapping for control items:
 
-- pointer, back, forward, reload, url-bar, scroll-up, scroll-down
+- pointer
+- pointer-left
+- pointer-right
+- back
+- forward
+- reload
+- url-bar
+- text-input
+- text-delete
+- text-enter
+- scroll
+- scroll-up
+- scroll-down
+
+## ui
+
+- simulate-particle: particle style for interaction feedback (`end_rod` or `flame`)
+- language: `en` or `ja`
 
 ## storage
 

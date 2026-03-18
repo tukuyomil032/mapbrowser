@@ -7,10 +7,21 @@
 
 ## 画面管理
 
-- /mb create <w> <h> [name]
-- /mb destroy
+- /mb create <w> <h> [name] [--autofill]
+- /mb select <screen-id|screen-name|latest>
 - /mb list
 - /mb info
+- /mb load [screen-id|screen-name|latest]
+- /mb unload [screen-id|screen-name|latest]
+- /mb delete|remove|destroy [screen-id|screen-name|latest]
+- /mb refill [screen-id|screen-name|latest]
+- /mb resize <screen-id|screen-name|latest> <w> <h>
+- /mb exit
+
+## メニュー
+
+- /mb menu
+- /mb gui
 
 ## ブラウザ操作
 
@@ -20,11 +31,10 @@
 - /mb forward
 - /mb reload
 - /mb fps <value>
-- /mb exit
 
 ## アイテム付与
 
-- /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|scroll>
+- /mb give <pointer-left|pointer-right|pointer|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll|scroll-up|scroll-down>
 
 ## 設定
 
@@ -34,9 +44,14 @@
 ## 管理系
 
 - /mb admin status
+- /mb admin deps
+- /mb admin reload
+- /mb admin perf [screen-id|screen-name|latest]
+- /mb admin perfbench <秒>
 - /mb admin stop <screenId>
 
 ## 注意
 
 - 多くのコマンドはプレイヤー実行前提です。
+- 画面引数を省略した場合は、選択中スクリーンが対象です。
 - URL はセキュリティ設定で検証されます。

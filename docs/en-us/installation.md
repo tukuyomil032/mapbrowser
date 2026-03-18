@@ -4,7 +4,7 @@
 
 - Java 21
 - Node.js 20+
-- pnpm 10+
+- pnpm 10+ (or bun)
 - Paper/Leaf 1.21 server
 
 ## Step 1: Build plugin artifact
@@ -26,6 +26,23 @@ pnpm exec playwright install chromium
 pnpm run build
 cd ..
 ```
+
+Optional (bun):
+
+```bash
+cd browser-renderer
+bun install
+bunx playwright install chromium
+bun run build
+cd ..
+```
+
+Useful renderer scripts:
+
+- `pnpm run dev` / `bun run dev`
+- `pnpm run typecheck` / `bun run typecheck`
+- `pnpm run lint` / `bun run lint`
+- `pnpm run biome:check` / `bun run biome:check`
 
 ## Step 3: Install to server
 

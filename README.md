@@ -15,17 +15,19 @@ MapBrowser renders live browser frames onto Minecraft map surfaces by running:
 
 - a Java plugin side for game integration and packet flow
 - a Node.js renderer side for Playwright capture and frame processing
-- JSON-over-WebSocket IPC between them on localhost
+- JSON-over-WebSocket IPC between them on localhost (`browser.ipc-port`, default `25600`)
 
 By default, browser rendering is isolated in a child process and restarted automatically when needed.
 
 ## Features
 
 - live web page rendering on map-based screens
-- basic interaction flow: create, open URL, back/forward/reload, fps control
+- interaction flow: create/select/open URL/type/back/forward/reload/fps
+- screen lifecycle operations: load/unload/resize/refill/delete
 - delta frame optimization with full-frame fallback for heavy changes
 - storage backends: yaml and sqlite
-- velocity messaging bridge command path: PING and OPEN_URL
+- velocity plugin messaging bridge: PING/OPEN_URL/RELOAD_SCREEN/SET_FPS/CLOSE_SCREEN/BACK_SCREEN/FORWARD_SCREEN
+- optional companion-mod audio bridge over `mapbrowser:audio`
 - release pipeline ready for auto-tag plus GitHub Releases
 
 ## Table of Contents
@@ -51,7 +53,7 @@ By default, browser rendering is isolated in a child process and restarted autom
 
 - Java 21
 - Node.js 20+
-- pnpm 10+
+- pnpm 10+ (or bun)
 - Spigot 1.21.x server
 
 ## Quick Start
@@ -62,6 +64,15 @@ By default, browser rendering is isolated in a child process and restarted autom
 cd browser-renderer
 pnpm install
 pnpm exec playwright install chromium
+cd ..
+```
+
+Optional (bun):
+
+```bash
+cd browser-renderer
+bun install
+bunx playwright install chromium
 cd ..
 ```
 
@@ -105,6 +116,14 @@ pnpm run typecheck
 pnpm run build
 ```
 
+Optional (bun):
+
+```bash
+cd browser-renderer
+bun run typecheck
+bun run build
+```
+
 ## Configuration
 
 Main runtime config:
@@ -114,25 +133,37 @@ Main runtime config:
 Important keys:
 
 - browser.ipc-port
+- browser.renderer-dir and browser.node-path
 - screen.default-fps and screen.max-fps
+- screen.max-width, screen.max-height, screen.max-screens-per-world
 - security.allow-http and security.block-local-network
+- audio.capture-mode and audio.test-opus-base64
+- ui.simulate-particle and ui.language
 - storage (yaml or sqlite)
 
 ## Commands
 
 - /mb create <w> <h> [name]
+- /mb menu | /mb gui
+- /mb select <screen-id|screen-name>
 - /mb open <url>
+- /mb type <text>
 - /mb back
 - /mb forward
 - /mb reload
 - /mb fps <value>
 - /mb list
 - /mb info
-- /mb destroy
-- /mb give <pointer|back|forward|reload|url-bar|scroll-up|scroll-down>
+- /mb load [screen]
+- /mb unload [screen]
+- /mb delete|destroy [screen]
+- /mb refill [screen]
+- /mb resize <screen> <w> <h>
+- /mb config simulate_particle <end_rod|flame>
+- /mb config language <en|ja>
+- /mb give <pointer-left|pointer-right|pointer|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll|scroll-up|scroll-down>
 - /mb exit
-- /mb admin status
-- /mb admin stop <screenId>
+- /mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>
 
 ## Documentation
 

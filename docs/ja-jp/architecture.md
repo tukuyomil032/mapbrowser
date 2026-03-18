@@ -97,4 +97,15 @@ flowchart TD
 | ブリッジ | チャンネル | 現在のコマンド |
 |---|---|---|
 | 音声 | mapbrowser:audio | エンコード済みフレーム転送 |
-| Velocity | mapbrowser:velocity | PING/STATUS, OPEN_URL |
+| Velocity | mapbrowser:velocity | PING/STATUS, OPEN_URL, RELOAD_SCREEN, SET_FPS, CLOSE_SCREEN, BACK_SCREEN, FORWARD_SCREEN |
+
+Velocity `STATUS` の現在の返却項目:
+
+- screenCount
+- ipcConnected
+- onlinePlayers
+- ipcHealthSummary
+- inboundTotal
+- inboundFrame
+- inboundDelta
+- audioDiagnostics

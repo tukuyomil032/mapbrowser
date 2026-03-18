@@ -7,10 +7,21 @@ Base command:
 
 ## Screen lifecycle
 
-- /mb create <w> <h> [name]
-- /mb destroy
+- /mb create <w> <h> [name] [--autofill]
+- /mb select <screen-id|screen-name|latest>
 - /mb list
 - /mb info
+- /mb load [screen-id|screen-name|latest]
+- /mb unload [screen-id|screen-name|latest]
+- /mb delete|remove|destroy [screen-id|screen-name|latest]
+- /mb refill [screen-id|screen-name|latest]
+- /mb resize <screen-id|screen-name|latest> <w> <h>
+- /mb exit
+
+## Menu
+
+- /mb menu
+- /mb gui
 
 ## Browser control
 
@@ -20,11 +31,10 @@ Base command:
 - /mb forward
 - /mb reload
 - /mb fps <value>
-- /mb exit
 
 ## Items
 
-- /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|scroll>
+- /mb give <pointer-left|pointer-right|pointer|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll|scroll-up|scroll-down>
 
 ## Config
 
@@ -34,10 +44,15 @@ Base command:
 ## Admin
 
 - /mb admin status
+- /mb admin deps
+- /mb admin reload
+- /mb admin perf [screen-id|screen-name|latest]
+- /mb admin perfbench <seconds>
 - /mb admin stop <screenId>
 
 ## Notes
 
 - Most commands are player-only.
+- Most commands target selected screen when screen argument is omitted.
 - URL input is validated by security rules.
 - FPS must be in configured allowed range.

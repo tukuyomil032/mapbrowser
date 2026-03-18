@@ -40,16 +40,28 @@
 - sample-rate: Opus フレームのサンプルレート
 - frame-interval-ms: テスト音声フレーム送信間隔(ms)
 - test-opus-base64: 設定時にNode側でテスト用Opusフレームを定期送信
+- max-distance: 音声転送の距離制限
 
 ## items
 
 - pointer
+- pointer-left
+- pointer-right
 - back
 - forward
 - reload
 - url-bar
+- text-input
+- text-delete
+- text-enter
+- scroll
 - scroll-up
 - scroll-down
+
+## ui
+
+- simulate-particle: 操作フィードバック用パーティクル (`end_rod` または `flame`)
+- language: `en` または `ja`
 
 ## storage
 

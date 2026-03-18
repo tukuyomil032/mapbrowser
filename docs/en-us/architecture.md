@@ -97,4 +97,15 @@ flowchart TD
 | Bridge | Channel | Current commands |
 |---|---|---|
 | Audio | mapbrowser:audio | encoded frame forwarding |
-| Velocity | mapbrowser:velocity | PING/STATUS, OPEN_URL |
+| Velocity | mapbrowser:velocity | PING/STATUS, OPEN_URL, RELOAD_SCREEN, SET_FPS, CLOSE_SCREEN, BACK_SCREEN, FORWARD_SCREEN |
+
+Velocity `STATUS` currently returns:
+
+- screenCount
+- ipcConnected
+- onlinePlayers
+- ipcHealthSummary
+- inboundTotal
+- inboundFrame
+- inboundDelta
+- audioDiagnostics
