@@ -219,15 +219,15 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         if (!plugin.getPermissionManager().has(sender, "mapbrowser.create")) {
-            sendError(sender, "No permission.");
+            sendError(sender, tk("command.error.no-permission", "No permission.", "権限がありません。"));
             return true;
         }
         if (args.length < 3) {
-            sendError(sender, "Usage: /mb create <w> <h> [name] [--autofill]");
+            sendError(sender, tk("command.usage.create", "Usage: /mb create <w> <h> [name] [--autofill]", "使用法: /mb create <w> <h> [name] [--autofill]"));
             return true;
         }
 
@@ -301,7 +301,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
 
@@ -344,11 +344,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb select <screen-id|screen-name>");
+            sendError(sender, tk("command.usage.select", "Usage: /mb select <screen-id|screen-name>", "使用法: /mb select <screen-id|screen-name>"));
             return true;
         }
 
@@ -403,7 +403,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb open <url>");
+            sendError(sender, tk("command.usage.open", "Usage: /mb open <url>", "使用法: /mb open <url>"));
             return true;
         }
 
@@ -422,7 +422,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Screen screen = selected.get();
         if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
-            sendError(sender, "Screen is unloaded. Use /mb load first.");
+            sendError(sender, tk("command.error.unloaded", "Screen is unloaded. Use /mb load first.", "スクリーンはアンロード状態です。先に /mb load を実行してください。"));
             return true;
         }
         screen.setCurrentUrl(result.valueOrReason());
@@ -444,7 +444,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb type <text>");
+            sendError(sender, tk("command.usage.type", "Usage: /mb type <text>", "使用法: /mb type <text>"));
             return true;
         }
 
@@ -456,13 +456,13 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final String text = String.join(" ", Arrays.copyOfRange(args, 1, args.length)).trim();
         if (text.isBlank()) {
-            sendError(sender, "Text is empty.");
+            sendError(sender, tk("command.error.text-empty", "Text is empty.", "テキストが空です。"));
             return true;
         }
 
         final Screen screen = selected.get();
         if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
-            sendError(sender, "Screen is unloaded. Use /mb load first.");
+            sendError(sender, tk("command.error.unloaded", "Screen is unloaded. Use /mb load first.", "スクリーンはアンロード状態です。先に /mb load を実行してください。"));
             return true;
         }
         plugin.getBrowserIPCClient().sendTextInput(screen.getId(), text);
@@ -475,7 +475,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
 
@@ -487,7 +487,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Screen screen = selected.get();
         if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
-            sendError(sender, "Screen is unloaded. Use /mb load first.");
+            sendError(sender, tk("command.error.unloaded", "Screen is unloaded. Use /mb load first.", "スクリーンはアンロード状態です。先に /mb load を実行してください。"));
             return true;
         }
         switch (type) {
@@ -509,11 +509,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb fps <value>");
+            sendError(sender, tk("command.usage.fps", "Usage: /mb fps <value>", "使用法: /mb fps <value>"));
             return true;
         }
 
@@ -540,7 +540,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         final Screen screen = selected.get();
         screen.setFps(fps);
         if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
-            sendError(sender, "Screen is unloaded. Use /mb load first.");
+            sendError(sender, tk("command.error.unloaded", "Screen is unloaded. Use /mb load first.", "スクリーンはアンロード状態です。先に /mb load を実行してください。"));
             return true;
         }
         plugin.getBrowserIPCClient().sendSetFps(screen.getId(), fps);
@@ -550,7 +550,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
     private boolean handleLoad(final CommandSender sender, final String[] args) {
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
 
@@ -574,7 +574,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
     private boolean handleUnload(final CommandSender sender, final String[] args) {
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
 
@@ -629,13 +629,13 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
 
         final Optional<Screen> selected = plugin.getScreenManager().getSelected(player.getUniqueId());
         if (selected.isEmpty()) {
-            sendError(sender, "No selected screen.");
+            sendError(sender, tk("command.error.no-selected", "No selected screen.", "スクリーンが選択されていません。"));
             return true;
         }
 
@@ -656,7 +656,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
 
@@ -680,16 +680,16 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
     private boolean handleGiveFrame(final CommandSender sender, final String[] args) {
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         if (!plugin.getPermissionManager().has(sender, "mapbrowser.use")) {
-            sendError(sender, "No permission.");
+            sendError(sender, tk("command.error.no-permission", "No permission.", "権限がありません。"));
             return true;
         }
 
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb give-frame <screen-id|screen-name> <tile-range>");
+            sendError(sender, tk("command.usage.give-frame", "Usage: /mb give-frame <screen-id|screen-name> <tile-range>", "使用法: /mb give-frame <screen-id|screen-name> <tile-range>"));
             sendInfo(sender, "Example: /mb gif test 1-2");
             sendInfo(sender, "Format: all, odd, even, x-y, x1-y1:x2-y2, n, n..m, n,m,p..q");
             return true;
@@ -878,21 +878,21 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
     private boolean handleResize(final CommandSender sender, final String[] args) {
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         if (!plugin.getPermissionManager().has(sender, "mapbrowser.create")) {
-            sendError(sender, "No permission.");
+            sendError(sender, tk("command.error.no-permission", "No permission.", "権限がありません。"));
             return true;
         }
         if (args.length < 4) {
-            sendError(sender, "Usage: /mb resize <screen-id|screen-name> <w> <h>");
+            sendError(sender, tk("command.usage.resize", "Usage: /mb resize <screen-id|screen-name> <w> <h>", "使用法: /mb resize <screen-id|screen-name> <w> <h>"));
             return true;
         }
 
         final Optional<Screen> target = resolveScreen(args[1], player);
         if (target.isEmpty()) {
-            sendError(sender, "Screen not found.");
+            sendError(sender, tk("command.error.screen-not-found", "Screen not found.", "スクリーンが見つかりません。"));
             return true;
         }
 
@@ -933,11 +933,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
     private boolean handleConfig(final CommandSender sender, final String[] args) {
         if (!plugin.getPermissionManager().has(sender, "mapbrowser.admin")) {
-            sendError(sender, "No permission.");
+            sendError(sender, tk("command.error.no-permission", "No permission.", "権限がありません。"));
             return true;
         }
         if (args.length < 3) {
-            sendError(sender, "Usage: /mb config <simulate_particle|language> <value>");
+            sendError(sender, tk("command.usage.config", "Usage: /mb config <simulate_particle|language> <value>", "使用法: /mb config <simulate_particle|language> <value>"));
             return true;
         }
 
@@ -1011,15 +1011,15 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         if (!plugin.getPermissionManager().has(sender, "mapbrowser.use")) {
-            sendError(sender, "No permission.");
+            sendError(sender, tk("command.error.no-permission", "No permission.", "権限がありません。"));
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll>");
+            sendError(sender, tk("command.usage.give", "Usage: /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll>", "使用法: /mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll>"));
             return true;
         }
 
@@ -1042,7 +1042,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         };
 
         if (path == null) {
-            sendError(sender, "Unknown item type.");
+            sendError(sender, tk("command.error.unknown-item", "Unknown item type.", "不明なアイテム種別です。"));
             return true;
         }
 
@@ -1177,11 +1177,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!plugin.getPermissionManager().has(sender, "mapbrowser.admin")) {
-            sendError(sender, "No permission.");
+            sendError(sender, tk("command.error.no-permission", "No permission.", "権限がありません。"));
             return true;
         }
         if (args.length < 2) {
-            sendError(sender, "Usage: /mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>");
+            sendError(sender, tk("command.usage.admin", "Usage: /mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>", "使用法: /mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>"));
             return true;
         }
 
@@ -1273,7 +1273,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         if ("perfbench".equalsIgnoreCase(args[1])) {
             if (!(sender instanceof Player player)) {
-                sendError(sender, "Player only command.");
+                sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
                 return true;
             }
             final int durationSec;
@@ -1297,7 +1297,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         if ("stop".equalsIgnoreCase(args[1])) {
             if (args.length < 3) {
-                sendError(sender, "Usage: /mb admin stop <screenId>");
+                sendError(sender, tk("command.usage.admin-stop", "Usage: /mb admin stop <screenId>", "使用法: /mb admin stop <screenId>"));
                 return true;
             }
             try {
@@ -1311,7 +1311,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             }
         }
 
-        sendError(sender, "Unknown admin command.");
+        sendError(sender, tk("command.error.unknown-admin", "Unknown admin command.", "不明なadminコマンドです。"));
         return true;
     }
 
@@ -1320,7 +1320,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         plugin.getScreenManager().clearSelected(player.getUniqueId());
