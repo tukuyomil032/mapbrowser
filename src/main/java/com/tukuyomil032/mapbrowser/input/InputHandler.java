@@ -112,28 +112,40 @@ public final class InputHandler implements Listener {
         final ItemStack heldItem = player.getInventory().getItemInMainHand();
 
         if (matchesTool(heldItem, "back", "items.back", Material.BOW)) {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                event.setCancelled(true);
+                return;
+            }
             plugin.getBrowserIPCClient().sendGoBack(screen.getId());
             event.setCancelled(true);
             return;
         }
 
         if (matchesTool(heldItem, "forward", "items.forward", Material.ARROW)) {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                event.setCancelled(true);
+                return;
+            }
             plugin.getBrowserIPCClient().sendGoForward(screen.getId());
             event.setCancelled(true);
             return;
         }
 
         if (matchesTool(heldItem, "reload", "items.reload", Material.COMPASS)) {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                event.setCancelled(true);
+                return;
+            }
             plugin.getBrowserIPCClient().sendReload(screen.getId());
             event.setCancelled(true);
             return;
         }
 
         if (matchesTool(heldItem, "scroll", "items.scroll", Material.MAGMA_CREAM)) {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                event.setCancelled(true);
+                return;
+            }
             final int delta = player.isSneaking() ? -300 : 300;
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), delta);
             event.setCancelled(true);
@@ -141,14 +153,20 @@ public final class InputHandler implements Listener {
         }
 
         if (matchesTool(heldItem, "scroll-up", "items.scroll-up", Material.SLIME_BALL)) {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                event.setCancelled(true);
+                return;
+            }
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), -300);
             event.setCancelled(true);
             return;
         }
 
         if (matchesTool(heldItem, "scroll-down", "items.scroll-down", Material.MAGMA_CREAM)) {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                event.setCancelled(true);
+                return;
+            }
             plugin.getBrowserIPCClient().sendScroll(screen.getId(), 300);
             event.setCancelled(true);
             return;
@@ -167,7 +185,10 @@ public final class InputHandler implements Listener {
         }
 
         if (matchesTool(heldItem, "text-delete", "items.text-delete", Material.SHEARS)) {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                event.setCancelled(true);
+                return;
+            }
             if (player.isSneaking()) {
                 plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Control+A");
                 plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Backspace");
@@ -179,7 +200,10 @@ public final class InputHandler implements Listener {
         }
 
         if (matchesTool(heldItem, "text-enter", "items.text-enter", Material.PRISMARINE_SHARD)) {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                event.setCancelled(true);
+                return;
+            }
             plugin.getBrowserIPCClient().sendKeyPress(screen.getId(), "Enter");
             event.setCancelled(true);
         }
@@ -238,14 +262,20 @@ public final class InputHandler implements Listener {
                 player.closeInventory();
                 return;
             }
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                player.closeInventory();
+                return;
+            }
             screen.setCurrentUrl(validated.valueOrReason());
             plugin.getBrowserIPCClient().sendNavigate(screen.getId(), validated.valueOrReason());
             sendInfo(player,
                     "Navigating: " + validated.valueOrReason(),
                     "移動先: " + validated.valueOrReason());
         } else {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!ensureInteractable(player, screen)) {
+                player.closeInventory();
+                return;
+            }
             plugin.getBrowserIPCClient().sendTextInput(screen.getId(), input);
             sendInfo(player, "Typed text into browser.", "ブラウザにテキストを入力しました。");
         }
@@ -526,7 +556,8 @@ public final class InputHandler implements Listener {
     }
 
     private String t(final String en, final String ja) {
-        return "ja".equals(resolveLanguage()) ? ja : en;
+        final String source = "ja".equals(resolveLanguage()) ? ja : en;
+        return plugin.getMessageLocalizer().translateRaw(resolveLanguage(), source);
     }
 
     private void sendInfo(final Player player, final String en, final String ja) {
@@ -535,6 +566,16 @@ public final class InputHandler implements Listener {
 
     private void sendError(final Player player, final String en, final String ja) {
         player.sendMessage(Component.text("[ERR] ", NamedTextColor.RED).append(Component.text(t(en, ja), NamedTextColor.WHITE)));
+    }
+
+    private boolean ensureInteractable(final Player player, final Screen screen) {
+        if (plugin.getScreenManager().ensureLoaded(screen.getId())) {
+            return true;
+        }
+        sendError(player,
+                "Screen is unloaded. Use /mb load first.",
+                "スクリーンはアンロード中です。先に /mb load を実行してください。");
+        return false;
     }
 
     private boolean isConfigured(final Material held, final String path, final Material fallback) {

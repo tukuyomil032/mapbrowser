@@ -5,7 +5,7 @@ plugins {
 }
 
 group = "com.tukuyomil032.mapbrowser"
-version = "1.0.22"
+version = "1.0.23"
 
 repositories {
     mavenCentral()

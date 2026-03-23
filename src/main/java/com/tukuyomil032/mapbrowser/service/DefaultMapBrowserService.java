@@ -42,6 +42,9 @@ public final class DefaultMapBrowserService implements MapBrowserService {
     @Override
     public void openUrl(final UUID screenId, final String url) {
         plugin.getScreenManager().getScreen(screenId).ifPresent(screen -> {
+            if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+                return;
+            }
             screen.setCurrentUrl(url);
             plugin.getBrowserIPCClient().sendNavigate(screen.getId(), url);
         });
@@ -53,7 +56,9 @@ public final class DefaultMapBrowserService implements MapBrowserService {
     @Override
     public boolean reload(final UUID screenId) {
         return plugin.getScreenManager().getScreen(screenId).map(screen -> {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+                return false;
+            }
             plugin.getBrowserIPCClient().sendReload(screen.getId());
             return true;
         }).orElse(false);
@@ -65,8 +70,10 @@ public final class DefaultMapBrowserService implements MapBrowserService {
     @Override
     public boolean setFps(final UUID screenId, final int fps) {
         return plugin.getScreenManager().getScreen(screenId).map(screen -> {
+            if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+                return false;
+            }
             screen.setFps(fps);
-            plugin.getScreenManager().ensureLoaded(screen.getId());
             plugin.getBrowserIPCClient().sendSetFps(screen.getId(), fps);
             return true;
         }).orElse(false);
@@ -89,7 +96,9 @@ public final class DefaultMapBrowserService implements MapBrowserService {
     @Override
     public boolean goBack(final UUID screenId) {
         return plugin.getScreenManager().getScreen(screenId).map(screen -> {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+                return false;
+            }
             plugin.getBrowserIPCClient().sendGoBack(screen.getId());
             return true;
         }).orElse(false);
@@ -101,7 +110,9 @@ public final class DefaultMapBrowserService implements MapBrowserService {
     @Override
     public boolean goForward(final UUID screenId) {
         return plugin.getScreenManager().getScreen(screenId).map(screen -> {
-            plugin.getScreenManager().ensureLoaded(screen.getId());
+            if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+                return false;
+            }
             plugin.getBrowserIPCClient().sendGoForward(screen.getId());
             return true;
         }).orElse(false);

@@ -408,7 +408,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final Screen screen = selected.get();
-        plugin.getScreenManager().ensureLoaded(screen.getId());
+        if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+            sendError(sender, "Screen is unloaded. Use /mb load first.");
+            return true;
+        }
         screen.setCurrentUrl(result.valueOrReason());
         plugin.getBrowserIPCClient().sendNavigate(screen.getId(), result.valueOrReason());
         sendOk(sender, "Navigating: " + result.valueOrReason());
@@ -445,7 +448,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final Screen screen = selected.get();
-        plugin.getScreenManager().ensureLoaded(screen.getId());
+        if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+            sendError(sender, "Screen is unloaded. Use /mb load first.");
+            return true;
+        }
         plugin.getBrowserIPCClient().sendTextInput(screen.getId(), text);
         sendOk(sender, "Typed text into browser.");
         return true;
@@ -467,7 +473,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final Screen screen = selected.get();
-        plugin.getScreenManager().ensureLoaded(screen.getId());
+        if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+            sendError(sender, "Screen is unloaded. Use /mb load first.");
+            return true;
+        }
         switch (type) {
             case "GO_BACK" -> plugin.getBrowserIPCClient().sendGoBack(screen.getId());
             case "GO_FORWARD" -> plugin.getBrowserIPCClient().sendGoForward(screen.getId());
@@ -517,7 +526,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Screen screen = selected.get();
         screen.setFps(fps);
-        plugin.getScreenManager().ensureLoaded(screen.getId());
+        if (!plugin.getScreenManager().ensureLoaded(screen.getId())) {
+            sendError(sender, "Screen is unloaded. Use /mb load first.");
+            return true;
+        }
         plugin.getBrowserIPCClient().sendSetFps(screen.getId(), fps);
         sendOk(sender, "FPS updated: " + fps);
         return true;
@@ -1720,6 +1732,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         result = result.replace("No permission.", "権限がありません。");
         result = result.replace("No selected screen.", "スクリーンが選択されていません。");
         result = result.replace("No selected screen. Create/select one first.", "スクリーンが選択されていません。先に作成または選択してください。");
+        result = result.replace("Screen is unloaded. Use /mb load first.", "スクリーンはアンロード状態です。先に /mb load を実行してください。");
         result = result.replace("Screen not found.", "スクリーンが見つかりません。");
         result = result.replace("Screen not found: ", "スクリーンが見つかりません: ");
         result = result.replace("Screen not found for perf detail: ", "パフォーマンス詳細対象のスクリーンが見つかりません: ");

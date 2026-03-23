@@ -16,6 +16,7 @@ import com.tukuyomil032.mapbrowser.screen.ScreenManager;
 import com.tukuyomil032.mapbrowser.service.DefaultMapBrowserService;
 import com.tukuyomil032.mapbrowser.service.MapBrowserService;
 import com.tukuyomil032.mapbrowser.storage.DataStore;
+import com.tukuyomil032.mapbrowser.util.MessageLocalizer;
 import com.tukuyomil032.mapbrowser.velocity.VelocityMessagingBridge;
 
 import net.kyori.adventure.text.Component;
@@ -31,6 +32,7 @@ public final class MapBrowserPlugin extends JavaPlugin {
     private BrowserIPCClient browserIPCClient;
     private AudioBridge audioBridge;
     private MapBrowserService service;
+    private MessageLocalizer messageLocalizer;
     private VelocityMessagingBridge velocityBridge;
     private int hudTaskId = -1;
 
@@ -53,6 +55,7 @@ public final class MapBrowserPlugin extends JavaPlugin {
         this.browserIPCClient = new BrowserIPCClient(this);
         this.audioBridge = createAudioBridge();
         this.service = new DefaultMapBrowserService(this);
+        this.messageLocalizer = new MessageLocalizer(this);
         this.velocityBridge = new VelocityMessagingBridge(this);
 
         dataStore.init();
@@ -169,5 +172,12 @@ public final class MapBrowserPlugin extends JavaPlugin {
      */
     public MapBrowserService getService() {
         return service;
+    }
+
+    /**
+     * Returns message localizer.
+     */
+    public MessageLocalizer getMessageLocalizer() {
+        return messageLocalizer;
     }
 }

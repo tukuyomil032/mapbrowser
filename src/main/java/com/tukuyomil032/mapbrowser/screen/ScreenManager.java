@@ -83,10 +83,18 @@ public final class ScreenManager {
         if (screen == null) {
             return false;
         }
-        if (screen.getState() == ScreenState.PLAYING || screen.getState() == ScreenState.LOADING) {
-            return true;
+        return screen.getState() == ScreenState.PLAYING || screen.getState() == ScreenState.LOADING;
+    }
+
+    /**
+     * Returns true when the screen can receive interaction commands.
+     */
+    public boolean isInteractable(final UUID screenId) {
+        final Screen screen = screens.get(screenId);
+        if (screen == null) {
+            return false;
         }
-        return loadScreen(screenId);
+        return screen.getState() == ScreenState.PLAYING || screen.getState() == ScreenState.LOADING;
     }
 
     /**
