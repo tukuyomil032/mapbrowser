@@ -29,7 +29,8 @@ public final class FrameRenderer {
     private static final Color[] PALETTE_COLORS = buildPaletteColors();
 
     private final MapBrowserPlugin plugin;
-    private final Map<UUID, byte[]> lastFrames = new ConcurrentHashMap<>();
+    private final Map<UUID, byte[]> frontFrames = new ConcurrentHashMap<>();
+    private final Map<UUID, byte[]> backFrames = new ConcurrentHashMap<>();
     private final Map<UUID, int[]> tileRevisionsByScreen = new ConcurrentHashMap<>();
     private final Map<UUID, DirtyRect[]> tileDirtyRectsByScreen = new ConcurrentHashMap<>();
     private final Map<UUID, List<Integer>> mapIdsByScreen = new ConcurrentHashMap<>();
@@ -58,7 +59,14 @@ public final class FrameRenderer {
             return;
         }
 
-        lastFrames.put(screen.getId(), colorData);
+        final UUID screenId = screen.getId();
+        byte[] back = backFrames.get(screenId);
+        if (back == null || back.length != fullSize) {
+            back = new byte[fullSize];
+            backFrames.put(screenId, back);
+        }
+        System.arraycopy(colorData, 0, back, 0, fullSize);
+        swapBuffers(screenId);
         bumpAllTiles(screen);
         screen.setState(ScreenState.PLAYING);
     }
@@ -92,16 +100,20 @@ public final class FrameRenderer {
         final int fullWidth = screen.getWidth() * 128;
         final int fullHeight = screen.getHeight() * 128;
         final int fullSize = fullWidth * fullHeight;
-        final byte[] frame = lastFrames.computeIfAbsent(screen.getId(), ignored -> new byte[fullSize]);
-        if (frame.length != fullSize) {
-            lastFrames.put(screen.getId(), new byte[fullSize]);
+        final UUID screenId = screen.getId();
+        byte[] front = frontFrames.get(screenId);
+        if (front == null || front.length != fullSize) {
+            front = new byte[fullSize];
+            frontFrames.put(screenId, front);
         }
 
-        byte[] target = lastFrames.get(screen.getId());
-        if (target == null || target.length != fullSize) {
-            target = new byte[fullSize];
-            lastFrames.put(screen.getId(), target);
+        byte[] back = backFrames.get(screenId);
+        if (back == null || back.length != fullSize) {
+            back = new byte[fullSize];
+            backFrames.put(screenId, back);
         }
+
+        System.arraycopy(front, 0, back, 0, fullSize);
 
         int srcOffset = 0;
         for (int row = 0; row < h; row++) {
@@ -112,7 +124,7 @@ public final class FrameRenderer {
             }
 
             if (x >= 0 && x + w <= fullWidth && srcOffset + w <= deltaData.length) {
-                System.arraycopy(deltaData, srcOffset, target, (yy * fullWidth) + x, w);
+                System.arraycopy(deltaData, srcOffset, back, (yy * fullWidth) + x, w);
                 srcOffset += w;
                 continue;
             }
@@ -123,12 +135,13 @@ public final class FrameRenderer {
                     break;
                 }
                 if (xx >= 0 && xx < fullWidth) {
-                    target[(yy * fullWidth) + xx] = deltaData[srcOffset];
+                    back[(yy * fullWidth) + xx] = deltaData[srcOffset];
                 }
                 srcOffset++;
             }
         }
 
+        swapBuffers(screenId);
         bumpDirtyTiles(screen, x, y, w, h);
         screen.setState(ScreenState.PLAYING);
     }
@@ -195,7 +208,8 @@ public final class FrameRenderer {
      * Removes cached frame for a screen.
      */
     public void clear(final UUID screenId) {
-        lastFrames.remove(screenId);
+        frontFrames.remove(screenId);
+        backFrames.remove(screenId);
         tileRevisionsByScreen.remove(screenId);
         tileDirtyRectsByScreen.remove(screenId);
         unregisterScreen(screenId);
@@ -208,10 +222,25 @@ public final class FrameRenderer {
         for (final UUID screenId : new ArrayList<>(mapIdsByScreen.keySet())) {
             unregisterScreen(screenId);
         }
-        lastFrames.clear();
+        frontFrames.clear();
+        backFrames.clear();
         tileRevisionsByScreen.clear();
         tileDirtyRectsByScreen.clear();
         plugin.getLogger().info("FrameRenderer shutdown completed.");
+    }
+
+    private void swapBuffers(final UUID screenId) {
+        final byte[] front = frontFrames.get(screenId);
+        final byte[] back = backFrames.get(screenId);
+        if (back == null) {
+            return;
+        }
+        frontFrames.put(screenId, back);
+        if (front != null) {
+            backFrames.put(screenId, front);
+        } else {
+            backFrames.remove(screenId);
+        }
     }
 
     private int[] ensureTileRevisions(final Screen screen) {
@@ -430,7 +459,7 @@ public final class FrameRenderer {
                 return;
             }
 
-            final byte[] frame = lastFrames.get(screenId);
+            final byte[] frame = frontFrames.get(screenId);
             if (frame == null) {
                 return;
             }
