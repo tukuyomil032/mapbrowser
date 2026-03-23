@@ -1565,7 +1565,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         if ("open-url".equals(action)) {
-            sendInfo(player, "Use URL bar item and right-click block to open anvil input.");
+            sendInfo(player, tk("command.info.menu-open-url", "Use URL bar item and right-click block to open anvil input.", "URLバーアイテムを使い、ブロック右クリックでAnvil入力を開いてください。"));
         }
 
         player.closeInventory();
@@ -1653,9 +1653,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         final double[] samples = new double[durationSec];
         final int[] sampleIndex = {0};
 
-        sendHeader(player, "MAPBROWSER PERFBENCH");
-        sendInfo(player, "Duration: " + durationSec + "s");
-        sendInfo(player, "Collecting TPS samples...");
+        sendHeader(player, tk("command.perfbench.header", "MAPBROWSER PERFBENCH", "MAPBROWSER PERFBENCH"));
+        sendInfo(player, tkp("command.perfbench.duration", "Duration: {seconds}s", "計測時間: {seconds}秒", Map.of("seconds", durationSec)));
+        sendInfo(player, tk("command.perfbench.collecting", "Collecting TPS samples...", "TPSサンプルを収集中..."));
         sendLine(player);
 
         final int taskId = Bukkit.getScheduler().scheduleSyncRepeatingTask(plugin, () -> {
@@ -1689,10 +1689,29 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 final long frameDelta = Math.max(0L, endStats.inboundFrame() - startStats.inboundFrame());
                 final long deltaDelta = Math.max(0L, endStats.inboundDelta() - startStats.inboundDelta());
 
-                sendHeader(player, "MAPBROWSER PERFBENCH RESULT");
-                sendInfo(player, String.format(java.util.Locale.ROOT, "tps avg=%.2f min=%.2f max=%.2f", avg, min, max));
-                sendInfo(player, "elapsed=" + elapsedSec + "s fullFrames=" + frameDelta + " deltaFrames=" + deltaDelta);
-                sendInfo(player, "frames/sec=" + ((frameDelta + deltaDelta) / elapsedSec));
+                sendHeader(player, tk("command.perfbench.result-header", "MAPBROWSER PERFBENCH RESULT", "MAPBROWSER PERFBENCH 結果"));
+                sendInfo(player, tkp(
+                    "command.perfbench.tps-stats",
+                    "tps avg={avg} min={min} max={max}",
+                    "tps avg={avg} min={min} max={max}",
+                    Map.of(
+                        "avg", String.format(java.util.Locale.ROOT, "%.2f", avg),
+                        "min", String.format(java.util.Locale.ROOT, "%.2f", min),
+                        "max", String.format(java.util.Locale.ROOT, "%.2f", max)
+                    )
+                ));
+                sendInfo(player, tkp(
+                    "command.perfbench.elapsed",
+                    "elapsed={elapsed}s fullFrames={full} deltaFrames={delta}",
+                    "elapsed={elapsed}s fullFrames={full} deltaFrames={delta}",
+                    Map.of("elapsed", elapsedSec, "full", frameDelta, "delta", deltaDelta)
+                ));
+                sendInfo(player, tkp(
+                    "command.perfbench.frames-per-sec",
+                    "frames/sec={fps}",
+                    "frames/sec={fps}",
+                    Map.of("fps", ((frameDelta + deltaDelta) / elapsedSec))
+                ));
                 sendLine(player);
                 return;
             }

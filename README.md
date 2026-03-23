@@ -160,7 +160,7 @@ Important keys:
 - /mb give-frame|gif <screen> <tile-range>
 - /mb resize <screen> <w> <h>
 - /mb config simulate_particle <end_rod|flame>
-- /mb config language <en|ja>
+- /mb config language <en|ja|ja-JP>
 - /mb give <pointer-left|pointer-right|pointer|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll|scroll-up|scroll-down>
 - /mb exit
 - /mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>

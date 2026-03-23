@@ -45,6 +45,22 @@ public final class MessageLocalizer {
         loadKeys(plugin, "messages_keys_ja.yml", jaKeys);
     }
 
+    MessageLocalizer(
+            final Map<String, String> enExact,
+            final Map<String, String> jaExact,
+            final Map<String, String> enPrefix,
+            final Map<String, String> jaPrefix,
+            final Map<String, String> enKeys,
+            final Map<String, String> jaKeys
+    ) {
+        this.enExact = new LinkedHashMap<>(enExact);
+        this.jaExact = new LinkedHashMap<>(jaExact);
+        this.enPrefix = new LinkedHashMap<>(enPrefix);
+        this.jaPrefix = new LinkedHashMap<>(jaPrefix);
+        this.enKeys = new LinkedHashMap<>(enKeys);
+        this.jaKeys = new LinkedHashMap<>(jaKeys);
+    }
+
     /**
      * Translates a free-form message according to current language setting.
      */
