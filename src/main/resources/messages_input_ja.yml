@@ -1,0 +1,13 @@
+messages:
+  exact:
+    "URL is empty.": "URLが空です。"
+    "Target screen not found.": "対象スクリーンが見つかりません。"
+    "No selected screen. Use /mb select <screen>.": "スクリーンが未選択です。/mb select <screen> を使用してください。"
+    "Could not resolve click position on frame.": "フレーム上のクリック位置を特定できませんでした。"
+    "Enter URL and click result slot to confirm.": "URLを入力し、結果スロットをクリックして確定してください。"
+    "Enter text and click result slot to type into browser.": "テキストを入力し、結果スロットをクリックして送信してください。"
+    "MapBrowser URL": "MapBrowser URL入力"
+    "MapBrowser Text Input": "MapBrowser テキスト入力"
+    "MapBrowser URL入力": "MapBrowser URL入力"
+    "MapBrowser テキスト入力": "MapBrowser テキスト入力"
+  prefix: {}

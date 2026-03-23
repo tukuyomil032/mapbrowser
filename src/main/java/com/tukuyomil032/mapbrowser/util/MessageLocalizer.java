@@ -30,7 +30,9 @@ public final class MessageLocalizer {
         this.enPrefix = new LinkedHashMap<>();
         this.jaPrefix = new LinkedHashMap<>();
         load(plugin, "messages_en.yml", enExact, enPrefix);
+        load(plugin, "messages_input_en.yml", enExact, enPrefix);
         load(plugin, "messages_ja.yml", jaExact, jaPrefix);
+        load(plugin, "messages_input_ja.yml", jaExact, jaPrefix);
     }
 
     /**
