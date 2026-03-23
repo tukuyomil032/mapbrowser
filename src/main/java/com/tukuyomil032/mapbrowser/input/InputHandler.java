@@ -521,10 +521,11 @@ public final class InputHandler implements Listener {
     }
 
     private void openUrlInput(final Player player, final Screen screen) {
+        final String language = resolveLanguage();
         final Inventory anvil = Bukkit.createInventory(
             player,
             InventoryType.ANVIL,
-            Component.text(t("MapBrowser URL", "MapBrowser URL入力"))
+            Component.text(plugin.getMessageLocalizer().translateKey(language, "input.anvil.url.title", t("MapBrowser URL", "MapBrowser URL入力")))
         );
         final ItemStack paper = new ItemStack(Material.PAPER);
         final ItemMeta meta = paper.getItemMeta();
@@ -535,14 +536,19 @@ public final class InputHandler implements Listener {
         anvil.setItem(0, paper);
         anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.URL));
         player.openInventory(anvil);
-        sendInfo(player, "Enter URL and click result slot to confirm.", "URLを入力し、結果スロットをクリックして確定してください。");
+        sendInfo(
+            player,
+            plugin.getMessageLocalizer().translateKey(language, "input.anvil.url.hint", "Enter URL and click result slot to confirm."),
+            plugin.getMessageLocalizer().translateKey(language, "input.anvil.url.hint", "URLを入力し、結果スロットをクリックして確定してください。")
+        );
     }
 
     private void openTextInput(final Player player, final Screen screen) {
+        final String language = resolveLanguage();
         final Inventory anvil = Bukkit.createInventory(
             player,
             InventoryType.ANVIL,
-            Component.text(t("MapBrowser Text Input", "MapBrowser テキスト入力"))
+            Component.text(plugin.getMessageLocalizer().translateKey(language, "input.anvil.text.title", t("MapBrowser Text Input", "MapBrowser テキスト入力")))
         );
         final ItemStack paper = new ItemStack(Material.PAPER);
         final ItemMeta meta = paper.getItemMeta();
@@ -551,7 +557,11 @@ public final class InputHandler implements Listener {
         anvil.setItem(0, paper);
         anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.TEXT));
         player.openInventory(anvil);
-        sendInfo(player, "Enter text and click result slot to type into browser.", "テキストを入力し、結果スロットをクリックして送信してください。");
+        sendInfo(
+            player,
+            plugin.getMessageLocalizer().translateKey(language, "input.anvil.text.hint", "Enter text and click result slot to type into browser."),
+            plugin.getMessageLocalizer().translateKey(language, "input.anvil.text.hint", "テキストを入力し、結果スロットをクリックして送信してください。")
+        );
     }
 
     private String resolveLanguage() {

@@ -1,0 +1,17 @@
+messages:
+  keys:
+    command.help.title: "MAPBROWSER COMMANDS"
+    command.help.create: "/mb create <w> <h> [name] [--autofill]"
+    command.help.menu: "/mb menu|gui"
+    command.help.select: "/mb select <screen-id|screen-name>"
+    command.error.unknown-subcommand: "Unknown subcommand. Use /mb"
+    command.error.player-only: "Player only command."
+    command.error.no-permission: "No permission."
+    command.error.no-selected: "No selected screen."
+    command.error.no-selected-create: "No selected screen. Create/select one first."
+    command.error.unsupported: "Unsupported command."
+    command.error.fps-integer: "FPS must be integer."
+    input.anvil.url.title: "MapBrowser URL"
+    input.anvil.text.title: "MapBrowser Text Input"
+    input.anvil.url.hint: "Enter URL and click result slot to confirm."
+    input.anvil.text.hint: "Enter text and click result slot to type into browser."

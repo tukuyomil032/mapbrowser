@@ -20,6 +20,8 @@ public final class MessageLocalizer {
     private final Map<String, String> jaExact;
     private final Map<String, String> enPrefix;
     private final Map<String, String> jaPrefix;
+    private final Map<String, String> enKeys;
+    private final Map<String, String> jaKeys;
 
     /**
      * Creates and loads message catalogs from bundled yaml resources.
@@ -29,12 +31,16 @@ public final class MessageLocalizer {
         this.jaExact = new LinkedHashMap<>();
         this.enPrefix = new LinkedHashMap<>();
         this.jaPrefix = new LinkedHashMap<>();
+        this.enKeys = new LinkedHashMap<>();
+        this.jaKeys = new LinkedHashMap<>();
         load(plugin, "messages_en.yml", enExact, enPrefix);
         load(plugin, "messages_input_en.yml", enExact, enPrefix);
         load(plugin, "messages_admin_en.yml", enExact, enPrefix);
         load(plugin, "messages_ja.yml", jaExact, jaPrefix);
         load(plugin, "messages_input_ja.yml", jaExact, jaPrefix);
         load(plugin, "messages_admin_ja.yml", jaExact, jaPrefix);
+        loadKeys(plugin, "messages_keys_en.yml", enKeys);
+        loadKeys(plugin, "messages_keys_ja.yml", jaKeys);
     }
 
     /**
@@ -62,6 +68,21 @@ public final class MessageLocalizer {
         }
 
         return source;
+    }
+
+    /**
+     * Translates a stable message key. Falls back to defaultText when key is missing.
+     */
+    public String translateKey(final String language, final String key, final String defaultText) {
+        if (key == null || key.isBlank()) {
+            return defaultText == null ? "" : defaultText;
+        }
+        final Map<String, String> keys = "ja".equalsIgnoreCase(language) ? jaKeys : enKeys;
+        final String value = keys.get(key);
+        if (value != null) {
+            return value;
+        }
+        return defaultText == null ? key : defaultText;
     }
 
     private void load(
@@ -93,6 +114,30 @@ public final class MessageLocalizer {
             for (final String key : prefixSection.getKeys(false)) {
                 final String value = prefixSection.getString(key, key);
                 prefixOut.put(key, value);
+            }
+        }
+    }
+
+    private void loadKeys(
+            final MapBrowserPlugin plugin,
+            final String resource,
+            final Map<String, String> keyOut
+    ) {
+        final InputStream stream = plugin.getResource(resource);
+        if (stream == null) {
+            plugin.getLogger().log(Level.WARNING, "Missing message resource: {0}", resource);
+            return;
+        }
+
+        final YamlConfiguration yaml = YamlConfiguration.loadConfiguration(
+                new InputStreamReader(stream, StandardCharsets.UTF_8)
+        );
+
+        final ConfigurationSection keySection = yaml.getConfigurationSection("messages.keys");
+        if (keySection != null) {
+            for (final String key : keySection.getKeys(false)) {
+                final String value = keySection.getString(key, key);
+                keyOut.put(key, value);
             }
         }
     }

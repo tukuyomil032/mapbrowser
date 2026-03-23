@@ -80,10 +80,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (args.length == 0) {
-            sendHeader(sender, "MAPBROWSER COMMANDS");
-            sendInfo(sender, "/mb create <w> <h> [name] [--autofill]");
-            sendInfo(sender, "/mb menu|gui");
-            sendInfo(sender, "/mb select <screen-id|screen-name>");
+            sendHeader(sender, tk("command.help.title", "MAPBROWSER COMMANDS", "MapBrowser コマンド一覧"));
+            sendInfo(sender, tk("command.help.create", "/mb create <w> <h> [name] [--autofill]", "/mb create <w> <h> [name] [--autofill]"));
+            sendInfo(sender, tk("command.help.menu", "/mb menu|gui", "/mb menu|gui"));
+            sendInfo(sender, tk("command.help.select", "/mb select <screen-id|screen-name>", "/mb select <screen-id|screen-name>"));
             sendInfo(sender, "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete|destroy [screen], /mb exit");
             sendInfo(sender, "/mb give-frame|gif <screen> <tile-range>, /mb resize <screen> <w> <h>");
             sendInfo(sender, "/mb config simulate_particle <end_rod|flame>");
@@ -118,7 +118,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "exit" -> handleExit(sender);
             case "admin" -> handleAdmin(sender, args);
             default -> {
-                sendError(sender, "Unknown subcommand. Use /mb");
+                sendError(sender, tk("command.error.unknown-subcommand", "Unknown subcommand. Use /mb", "不明なサブコマンドです。/mb を使用してください。"));
                 yield true;
             }
         };
@@ -382,11 +382,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         if (!plugin.getPermissionManager().has(sender, "mapbrowser.use")) {
-            sendError(sender, "No permission.");
+            sendError(sender, tk("command.error.no-permission", "No permission.", "権限がありません。"));
             return true;
         }
         if (args.length < 2) {
@@ -396,7 +396,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Optional<Screen> selected = plugin.getScreenManager().getSelected(player.getUniqueId());
         if (selected.isEmpty()) {
-            sendError(sender, "No selected screen. Create/select one first.");
+            sendError(sender, tk("command.error.no-selected-create", "No selected screen. Create/select one first.", "スクリーンが選択されていません。先に作成または選択してください。"));
             return true;
         }
 
@@ -423,11 +423,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         if (!(sender instanceof Player player)) {
-            sendError(sender, "Player only command.");
+            sendError(sender, tk("command.error.player-only", "Player only command.", "このコマンドはプレイヤー専用です。"));
             return true;
         }
         if (!plugin.getPermissionManager().has(sender, "mapbrowser.use")) {
-            sendError(sender, "No permission.");
+            sendError(sender, tk("command.error.no-permission", "No permission.", "権限がありません。"));
             return true;
         }
         if (args.length < 2) {
@@ -437,7 +437,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Optional<Screen> selected = plugin.getScreenManager().getSelected(player.getUniqueId());
         if (selected.isEmpty()) {
-            sendError(sender, "No selected screen.");
+            sendError(sender, tk("command.error.no-selected", "No selected screen.", "スクリーンが選択されていません。"));
             return true;
         }
 
@@ -468,7 +468,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Optional<Screen> selected = plugin.getScreenManager().getSelected(player.getUniqueId());
         if (selected.isEmpty()) {
-            sendError(sender, "No selected screen.");
+            sendError(sender, tk("command.error.no-selected", "No selected screen.", "スクリーンが選択されていません。"));
             return true;
         }
 
@@ -482,7 +482,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "GO_FORWARD" -> plugin.getBrowserIPCClient().sendGoForward(screen.getId());
             case "RELOAD" -> plugin.getBrowserIPCClient().sendReload(screen.getId());
             default -> {
-                sendError(sender, "Unsupported command.");
+                sendError(sender, tk("command.error.unsupported", "Unsupported command.", "未対応のコマンドです。"));
                 return true;
             }
         }
@@ -506,7 +506,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Optional<Screen> selected = plugin.getScreenManager().getSelected(player.getUniqueId());
         if (selected.isEmpty()) {
-            sendError(sender, "No selected screen.");
+            sendError(sender, tk("command.error.no-selected", "No selected screen.", "スクリーンが選択されていません。"));
             return true;
         }
 
@@ -514,7 +514,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         try {
             fps = Integer.parseInt(args[1]);
         } catch (final NumberFormatException ex) {
-            sendError(sender, "FPS must be integer.");
+            sendError(sender, tk("command.error.fps-integer", "FPS must be integer.", "FPSは整数で入力してください。"));
             return true;
         }
 
@@ -1808,5 +1808,11 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         result = result.replace("simulate_particle updated: ", "simulate_particle を更新: ");
 
         return result;
+    }
+
+    private String tk(final String key, final String en, final String ja) {
+        final String language = resolveLanguage();
+        final String fallback = "ja".equals(language) ? ja : en;
+        return plugin.getMessageLocalizer().translateKey(language, key, fallback);
     }
 }
