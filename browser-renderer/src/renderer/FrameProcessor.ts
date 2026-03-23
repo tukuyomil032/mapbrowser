@@ -39,12 +39,42 @@ export class FrameProcessor {
 	private readonly pool: Piscina;
 	private prevColorData: Uint8Array | null = null;
 	private prevLumaData: Uint8Array | null = null;
-	private static readonly TILE_SIZE = 16;
-	private static readonly LUMA_THRESHOLD = 5;
-	private static readonly TILE_CHANGED_THRESHOLD = 10;
-	private static readonly FRAME_SKIP_CHANGED_PIXELS = 30;
-	private static readonly MAX_DELTA_TILES = 24;
-	private static readonly MAX_CHANGED_TILE_RATIO = 0.65;
+	private static readonly TILE_SIZE = FrameProcessor.envInt(
+		"MAPBROWSER_TILE_SIZE",
+		16,
+		4,
+		64,
+	);
+	private static readonly LUMA_THRESHOLD = FrameProcessor.envInt(
+		"MAPBROWSER_LUMA_THRESHOLD",
+		5,
+		1,
+		30,
+	);
+	private static readonly TILE_CHANGED_THRESHOLD = FrameProcessor.envInt(
+		"MAPBROWSER_TILE_CHANGED_THRESHOLD",
+		10,
+		1,
+		256,
+	);
+	private static readonly FRAME_SKIP_CHANGED_PIXELS = FrameProcessor.envInt(
+		"MAPBROWSER_SKIP_CHANGED_PIXELS",
+		30,
+		1,
+		4096,
+	);
+	private static readonly MAX_DELTA_TILES = FrameProcessor.envInt(
+		"MAPBROWSER_MAX_DELTA_TILES",
+		24,
+		1,
+		256,
+	);
+	private static readonly MAX_CHANGED_TILE_RATIO = FrameProcessor.envFloat(
+		"MAPBROWSER_MAX_CHANGED_TILE_RATIO",
+		0.65,
+		0.05,
+		1,
+	);
 
 	public constructor() {
 		this.pool = new Piscina({
@@ -259,5 +289,39 @@ export class FrameProcessor {
 			}
 		}
 		return out;
+	}
+
+	private static envInt(
+		name: string,
+		fallback: number,
+		min: number,
+		max: number,
+	): number {
+		const raw = process.env[name];
+		if (!raw) {
+			return fallback;
+		}
+		const parsed = Number.parseInt(raw, 10);
+		if (!Number.isFinite(parsed)) {
+			return fallback;
+		}
+		return Math.max(min, Math.min(max, parsed));
+	}
+
+	private static envFloat(
+		name: string,
+		fallback: number,
+		min: number,
+		max: number,
+	): number {
+		const raw = process.env[name];
+		if (!raw) {
+			return fallback;
+		}
+		const parsed = Number.parseFloat(raw);
+		if (!Number.isFinite(parsed)) {
+			return fallback;
+		}
+		return Math.max(min, Math.min(max, parsed));
 	}
 }

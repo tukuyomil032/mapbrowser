@@ -30,6 +30,11 @@ export class PageController {
 	private lastTuneAtMs = Date.now();
 	private currentUrl = "about:blank";
 	private consecutiveSkipFrames = 0;
+	private metricsWindowStartedAt = Date.now();
+	private metricsProcessed = 0;
+	private metricsSkipped = 0;
+	private metricsFrameEmitted = 0;
+	private metricsDeltaEmitted = 0;
 
 	public constructor(
 		widthMaps: number,
@@ -141,6 +146,7 @@ export class PageController {
 		this.processedSinceTune = 0;
 		this.lastTuneAtMs = Date.now();
 		this.consecutiveSkipFrames = 0;
+		this.resetMetricsWindow();
 		await this.startCapture();
 	}
 
@@ -282,14 +288,22 @@ export class PageController {
 					this.widthMaps,
 					this.heightMaps,
 				);
+				this.metricsProcessed++;
 				if (processed.type !== "SKIP") {
 					this.consecutiveSkipFrames = 0;
+					if (processed.type === "FRAME") {
+						this.metricsFrameEmitted++;
+					} else {
+						this.metricsDeltaEmitted++;
+					}
 					this.onFrame(processed);
 				} else {
 					this.consecutiveSkipFrames++;
+					this.metricsSkipped++;
 				}
 				const elapsedMs = Math.max(1, Date.now() - startedAt);
 				this.updateAdaptiveFps(elapsedMs);
+				this.maybeLogMetrics();
 				const baseIntervalMs = Math.floor(1000 / Math.max(1, this.adaptiveFps));
 				const idlePenaltyMs =
 					this.consecutiveSkipFrames > 20
@@ -376,5 +390,33 @@ export class PageController {
 			normalized.includes("/watch?") ||
 			normalized.includes("/shorts/")
 		);
+	}
+
+	private maybeLogMetrics(): void {
+		const now = Date.now();
+		const elapsedMs = now - this.metricsWindowStartedAt;
+		if (elapsedMs < 10_000) {
+			return;
+		}
+
+		const elapsedSec = Math.max(1, elapsedMs / 1000);
+		const processedFps = this.metricsProcessed / elapsedSec;
+		const skipRatio =
+			this.metricsProcessed === 0
+				? 0
+				: this.metricsSkipped / this.metricsProcessed;
+		logger.info(
+			`Perf: fps=${processedFps.toFixed(2)} adaptive=${this.adaptiveFps} frame=${this.metricsFrameEmitted} delta=${this.metricsDeltaEmitted} skipRatio=${(skipRatio * 100).toFixed(1)}% processMs=${this.smoothedProcessMs.toFixed(1)}`,
+		);
+
+		this.resetMetricsWindow();
+	}
+
+	private resetMetricsWindow(): void {
+		this.metricsWindowStartedAt = Date.now();
+		this.metricsProcessed = 0;
+		this.metricsSkipped = 0;
+		this.metricsFrameEmitted = 0;
+		this.metricsDeltaEmitted = 0;
 	}
 }
