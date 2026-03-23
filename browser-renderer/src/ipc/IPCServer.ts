@@ -30,7 +30,16 @@ export class IPCServer {
 			(screenId) => this.send({ type: "PAGE_LOADED", screenId }),
 			audioPipeline,
 		);
-		this.wss = new WebSocketServer({ port, host: "127.0.0.1" });
+		this.wss = new WebSocketServer({
+			port,
+			host: "127.0.0.1",
+			perMessageDeflate: {
+				threshold: 1024,
+				zlibDeflateOptions: {
+					level: 3,
+				},
+			},
+		});
 	}
 
 	public start(): void {
@@ -200,7 +209,7 @@ export class IPCServer {
 		offset += 4;
 
 		Buffer.from(payload).copy(packet, offset);
-		this.socket.send(packet);
+		this.socket.send(packet, { binary: true, compress: true });
 	}
 
 	private uuidToBytes(value: string): Buffer | null {
