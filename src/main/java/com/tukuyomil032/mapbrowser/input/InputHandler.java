@@ -412,16 +412,18 @@ public final class InputHandler implements Listener {
         }
 
         if (tileIndex != 0) {
-            sendInfo(event.getPlayer(),
-                    "Use the first map tile (top-left) to auto-assemble.",
-                    "自動配置するには最初のマップタイル（左上）を使ってください。");
+            sendInfoKey(event.getPlayer(),
+                "input.info.autofill-use-first-tile",
+                "Use the first map tile (top-left) to auto-assemble.",
+                "自動配置するには最初のマップタイル（左上）を使ってください。");
             return;
         }
 
         if (assembledScreens.contains(screenId)) {
-            sendInfo(event.getPlayer(),
-                    "This screen is already auto-assembled.",
-                    "このスクリーンはすでに自動配置済みです。");
+            sendInfoKey(event.getPlayer(),
+                "input.info.autofill-already",
+                "This screen is already auto-assembled.",
+                "このスクリーンはすでに自動配置済みです。");
             return;
         }
 
@@ -589,11 +591,21 @@ public final class InputHandler implements Listener {
     }
 
     private void sendInfoKey(final Player player, final String key, final String en, final String ja) {
-        sendInfo(player, tk(key, en, ja), tk(key, en, ja));
+        player.sendMessage(Component.text("• ", NamedTextColor.GRAY).append(Component.text(tk(key, en, ja), NamedTextColor.WHITE)));
     }
 
     private void sendErrorKey(final Player player, final String key, final String en, final String ja) {
-        sendError(player, tk(key, en, ja), tk(key, en, ja));
+        player.sendMessage(Component.text("[ERR] ", NamedTextColor.RED).append(Component.text(tk(key, en, ja), NamedTextColor.WHITE)));
+    }
+
+    private void sendInfoKey(
+            final Player player,
+            final String key,
+            final String en,
+            final String ja,
+            final java.util.Map<String, ?> placeholders
+    ) {
+        player.sendMessage(Component.text("• ", NamedTextColor.GRAY).append(Component.text(tkp(key, en, ja, placeholders), NamedTextColor.WHITE)));
     }
 
     private String tk(final String key, final String en, final String ja) {
@@ -612,7 +624,8 @@ public final class InputHandler implements Listener {
         if (plugin.getScreenManager().ensureLoaded(screen.getId())) {
             return true;
         }
-        sendError(player,
+        sendErrorKey(player,
+                "command.error.unloaded",
                 "Screen is unloaded. Use /mb load first.",
                 "スクリーンはアンロード中です。先に /mb load を実行してください。");
         return false;
@@ -661,9 +674,10 @@ public final class InputHandler implements Listener {
         final BlockFace facing = anchorFrame.getFacing();
         final int[] right = rightVector(facing);
         if (right == null) {
-            sendError(player,
-                    "This frame direction is not supported for auto-assembly.",
-                    "このフレームの向きでは自動配置に対応していません。");
+            sendErrorKey(player,
+                "input.error.autofill-unsupported-facing",
+                "This frame direction is not supported for auto-assembly.",
+                "このフレームの向きでは自動配置に対応していません。");
             return;
         }
 
@@ -673,9 +687,10 @@ public final class InputHandler implements Listener {
         final int anchorRow = tileIndex / width;
 
         if (anchorCol != 0 || anchorRow != 0) {
-            sendError(player,
-                    "Starter map must be tile 0 (top-left).",
-                    "スターターマップはタイル0（左上）である必要があります。");
+            sendErrorKey(player,
+                "input.error.autofill-starter-tile",
+                "Starter map must be tile 0 (top-left).",
+                "スターターマップはタイル0（左上）である必要があります。");
             return;
         }
 
@@ -727,25 +742,30 @@ public final class InputHandler implements Listener {
         final boolean completed = (placed + alreadyPlaced) == expected && blocked == 0 && failed == 0;
         if (completed) {
             assembledScreens.add(screen.getId());
-            sendInfo(player,
-                "MapBrowser auto-assembly completed: " + width + "x" + height,
-                "MapBrowser 自動配置が完了しました: " + width + "x" + height);
+            sendInfoKey(
+                player,
+                "input.info.autofill-completed",
+                "MapBrowser auto-assembly completed: {width}x{height}",
+                "MapBrowser 自動配置が完了しました: {width}x{height}",
+                java.util.Map.of("width", width, "height", height)
+            );
             return;
         }
 
         assembledScreens.remove(screen.getId());
-        sendInfo(player,
-            "MapBrowser auto-assembly partial: placed=" + placed
-                + " already=" + alreadyPlaced
-                + " blocked=" + blocked
-                + " failed=" + failed + ".",
-            "MapBrowser 自動配置（部分完了）: 設置=" + placed
-                + " 既存=" + alreadyPlaced
-                + " 障害=" + blocked
-                + " 失敗=" + failed + "。");
-        sendInfo(player,
+        sendInfoKey(
+            player,
+            "input.info.autofill-partial",
+            "MapBrowser auto-assembly partial: placed={placed} already={already} blocked={blocked} failed={failed}.",
+            "MapBrowser 自動配置（部分完了）: 設置={placed} 既存={already} 障害={blocked} 失敗={failed}。",
+            java.util.Map.of("placed", placed, "already", alreadyPlaced, "blocked", blocked, "failed", failed)
+        );
+        sendInfoKey(
+            player,
+            "input.info.autofill-retry",
             "Clear blocked frames and place starter map again to retry.",
-            "フレームの障害物を取り除いて、スターターマップを再設置してください。");
+            "フレームの障害物を取り除いて、スターターマップを再設置してください。"
+        );
     }
 
     private ItemFrame findOrCreateFrame(final World world, final Location loc, final BlockFace facing) {

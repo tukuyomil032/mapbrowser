@@ -91,13 +91,13 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             sendInfo(sender, tk("command.help.create", "/mb create <w> <h> [name] [--autofill]", "/mb create <w> <h> [name] [--autofill]"));
             sendInfo(sender, tk("command.help.menu", "/mb menu (alias: gui)", "/mb menu (alias: gui)"));
             sendInfo(sender, tk("command.help.select", "/mb select <screen-id|screen-name>", "/mb select <screen-id|screen-name>"));
-            sendInfo(sender, "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete [screen] (alias: remove, destroy), /mb exit");
-            sendInfo(sender, "/mb give-frame <screen> <tile-range> (alias: gif), /mb resize <screen> <w> <h>");
-            sendInfo(sender, "/mb config simulate_particle <end_rod|flame>");
-            sendInfo(sender, "/mb config language <en|ja>");
-            sendInfo(sender, "/mb open <url>, /mb type <text>, /mb back, /mb forward, /mb reload, /mb fps <value>");
-            sendInfo(sender, "/mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll>");
-            sendInfo(sender, "/mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>");
+            sendInfo(sender, tk("command.help.core", "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete [screen] (alias: remove, destroy), /mb exit", "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete [screen] (alias: remove, destroy), /mb exit"));
+            sendInfo(sender, tk("command.help.frame", "/mb give-frame <screen> <tile-range> (alias: gif), /mb resize <screen> <w> <h>", "/mb give-frame <screen> <tile-range> (alias: gif), /mb resize <screen> <w> <h>"));
+            sendInfo(sender, tk("command.help.config-particle", "/mb config simulate_particle <end_rod|flame>", "/mb config simulate_particle <end_rod|flame>"));
+            sendInfo(sender, tk("command.help.config-language", "/mb config language <en|ja|ja-JP>", "/mb config language <en|ja|ja-JP>"));
+            sendInfo(sender, tk("command.help.browser", "/mb open <url>, /mb type <text>, /mb back, /mb forward, /mb reload, /mb fps <value>", "/mb open <url>, /mb type <text>, /mb back, /mb forward, /mb reload, /mb fps <value>"));
+            sendInfo(sender, tk("command.help.tools", "/mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll>", "/mb give <pointer-left|pointer-right|back|forward|reload|url-bar|text-input|text-delete|text-enter|scroll>"));
+            sendInfo(sender, tk("command.help.admin", "/mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>", "/mb admin status|deps|reload|perf [screen]|perfbench <sec>|stop <screenId>"));
             sendLine(sender);
             return true;
         }
@@ -237,14 +237,19 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             width = Integer.parseInt(args[1]);
             height = Integer.parseInt(args[2]);
         } catch (final NumberFormatException ex) {
-            sendError(sender, "Width/height must be integer.");
+            sendError(sender, tk("command.error.size-integer", "Width/height must be integer.", "幅と高さは整数で入力してください。"));
             return true;
         }
 
         final int maxWidth = plugin.getConfig().getInt("screen.max-width", 8);
         final int maxHeight = plugin.getConfig().getInt("screen.max-height", 8);
         if (width <= 0 || height <= 0 || width > maxWidth || height > maxHeight) {
-            sendError(sender, "Screen size must be 1.." + maxWidth + " x 1.." + maxHeight);
+            sendError(sender, tkp(
+                    "command.error.screen-size-range",
+                    "Screen size must be 1..{maxWidth} x 1..{maxHeight}",
+                    "スクリーンサイズは 1..{maxWidth} x 1..{maxHeight} の範囲で指定してください。",
+                    Map.of("maxWidth", maxWidth, "maxHeight", maxHeight)
+            ));
             return true;
         }
 
@@ -253,7 +258,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 .filter(screen -> screen.getWorldName().equals(player.getWorld().getName()))
                 .count();
         if (screensInWorld >= maxScreensPerWorld) {
-            sendError(sender, "Screen limit reached in this world (max=" + maxScreensPerWorld + ").");
+            sendError(sender, tkp(
+                    "command.error.screen-limit-world",
+                    "Screen limit reached in this world (max={max}).",
+                    "このワールドのスクリーン上限に達しています (max={max})。",
+                    Map.of("max", maxScreensPerWorld)
+            ));
             return true;
         }
 
@@ -272,7 +282,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         final boolean duplicateName = plugin.getScreenManager().getAllScreens().stream()
             .anyMatch(screen -> screen.getName().equalsIgnoreCase(name));
         if (duplicateName) {
-            sendError(sender, "Screen name already exists: " + name);
+            sendError(sender, tkp(
+                    "command.error.screen-name-exists",
+                    "Screen name already exists: {screen}",
+                    "スクリーン名は既に存在します: {screen}",
+                    Map.of("screen", name)
+            ));
             return true;
         }
 
@@ -281,16 +296,16 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         plugin.getBrowserIPCClient().sendOpen(screen.getId(), width, height, screen.getFps());
         final MapDeliverySummary summary = giveScreenMaps(player, screen, autoFillEnabled);
 
-        sendHeader(sender, "SCREEN CREATED");
-        sendOk(sender, "Name: " + screen.getName());
-        sendInfo(sender, "ID: " + screen.getId());
-        sendInfo(sender, "Size: " + width + "x" + height + " maps");
-        sendInfo(sender, "Map total: " + summary.totalMaps() + " (direct=" + summary.directMaps() + ", bundles=" + summary.bundleBoxes() + ")");
-        sendInfo(sender, "Autofill: " + (autoFillEnabled ? "enabled" : "disabled") + " (use --autofill to enable)");
-        sendInfo(sender, "Starter frame given: place 1 frame + starter map.");
-        sendInfo(sender, "Use /mb select " + screen.getName() + " to re-select later.");
-        sendInfo(sender, "Placement guide: " + (width * height) + " item frames, no map rotation.");
-        sendInfo(sender, "Tile order: left->right, then top->bottom.");
+        sendHeader(sender, tk("command.ok.screen-created-header", "SCREEN CREATED", "スクリーン作成完了"));
+        sendOk(sender, tkp("command.ok.created.name", "Name: {screen}", "名前: {screen}", Map.of("screen", screen.getName())));
+        sendInfo(sender, tkp("command.ok.created.id", "ID: {id}", "ID: {id}", Map.of("id", screen.getId())));
+        sendInfo(sender, tkp("command.ok.created.size", "Size: {width}x{height} maps", "サイズ: {width}x{height} マップ", Map.of("width", width, "height", height)));
+        sendInfo(sender, tkp("command.ok.created.map-total", "Map total: {total} (direct={direct}, bundles={bundles})", "マップ総数: {total} (直接={direct}, バンドル={bundles})", Map.of("total", summary.totalMaps(), "direct", summary.directMaps(), "bundles", summary.bundleBoxes())));
+        sendInfo(sender, tkp("command.ok.created.autofill", "Autofill: {state} (use --autofill to enable)", "自動配置: {state} (--autofill で有効)", Map.of("state", autoFillEnabled ? tk("common.enabled", "enabled", "有効") : tk("common.disabled", "disabled", "無効"))));
+        sendInfo(sender, tk("command.ok.created.starter-frame", "Starter frame given: place 1 frame + starter map.", "スターターフレームを付与しました: 額縁1つとスターターマップを設置してください。"));
+        sendInfo(sender, tkp("command.ok.created.reselect", "Use /mb select {screen} to re-select later.", "後で再選択するには /mb select {screen} を使用してください。", Map.of("screen", screen.getName())));
+        sendInfo(sender, tkp("command.ok.created.placement-guide", "Placement guide: {frames} item frames, no map rotation.", "配置ガイド: 額縁 {frames} 個、マップ回転なし。", Map.of("frames", width * height)));
+        sendInfo(sender, tk("command.ok.created.tile-order", "Tile order: left->right, then top->bottom.", "タイル順: 左→右、次に上→下。"));
         sendLine(sender);
         player.playSound(player.getLocation(), Sound.UI_TOAST_CHALLENGE_COMPLETE, 0.7f, 1.2f);
         return true;
@@ -335,7 +350,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         player.openInventory(menu);
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 0.8f, 1.0f);
-        sendOk(sender, "Opened MapBrowser menu.");
+        sendOk(sender, tk("command.ok.menu-opened", "Opened MapBrowser menu.", "MapBrowserメニューを開きました。"));
         return true;
     }
 
@@ -357,7 +372,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             final Optional<Screen> latest = plugin.getScreenManager().getAllScreens().stream()
                     .max(Comparator.comparing(Screen::getCreatedAt));
             if (latest.isEmpty()) {
-                sendError(sender, "No screens available.");
+                sendError(sender, tk("command.error.no-screens", "No screens available.", "利用可能なスクリーンがありません。"));
                 return true;
             }
             plugin.getScreenManager().setSelected(player.getUniqueId(), latest.get().getId());
@@ -486,7 +501,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         plugin.getBrowserIPCClient().sendTextInput(screen.getId(), text);
-        sendOk(sender, "Typed text into browser.");
+        sendOk(sender, tk("command.ok.typed", "Typed text into browser.", "ブラウザにテキストを入力しました。"));
         return true;
     }
 
@@ -520,7 +535,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             }
         }
 
-        sendOk(sender, "Sent command: " + type);
+        sendOk(sender, tkp("command.ok.sent-command", "Sent command: {command}", "コマンド送信: {command}", Map.of("command", type)));
         return true;
     }
 
@@ -553,7 +568,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final int maxFps = plugin.getConfig().getInt("screen.max-fps", 30);
         if (fps < 1 || fps > maxFps) {
-            sendError(sender, "FPS must be 1.." + maxFps);
+            sendError(sender, tkp("command.error.fps-range", "FPS must be 1..{maxFps}", "FPSは 1..{maxFps} の範囲で指定してください。", Map.of("maxFps", maxFps)));
             return true;
         }
 
@@ -583,7 +598,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 ? resolveScreen(args[1], player)
                 : plugin.getScreenManager().getSelected(player.getUniqueId());
         if (target.isEmpty()) {
-            sendError(sender, args.length >= 2 ? "Screen not found." : "No selected screen.");
+            sendError(sender, args.length >= 2
+                ? tk("command.error.screen-not-found", "Screen not found.", "スクリーンが見つかりません。")
+                : tk("command.error.no-selected", "No selected screen.", "スクリーンが選択されていません。"));
             return true;
         }
 
@@ -598,7 +615,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        sendError(sender, "Load failed.");
+        sendError(sender, tk("command.error.load-failed", "Load failed.", "ロードに失敗しました。"));
         return true;
     }
 
@@ -612,7 +629,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 ? resolveScreen(args[1], player)
                 : plugin.getScreenManager().getSelected(player.getUniqueId());
         if (target.isEmpty()) {
-            sendError(sender, args.length >= 2 ? "Screen not found." : "No selected screen.");
+            sendError(sender, args.length >= 2
+                ? tk("command.error.screen-not-found", "Screen not found.", "スクリーンが見つかりません。")
+                : tk("command.error.no-selected", "No selected screen.", "スクリーンが選択されていません。"));
             return true;
         }
 
@@ -627,7 +646,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        sendError(sender, "Unload failed.");
+        sendError(sender, tk("command.error.unload-failed", "Unload failed.", "アンロードに失敗しました。"));
         return true;
     }
 
@@ -675,13 +694,13 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final Screen screen = selected.get();
-        sendHeader(sender, "SELECTED SCREEN");
-        sendInfo(sender, "Name: " + screen.getName());
-        sendInfo(sender, "ID: " + screen.getId());
-        sendInfo(sender, "URL: " + screen.getCurrentUrl());
-        sendInfo(sender, "State: " + screen.getState());
-        sendInfo(sender, "Size: " + screen.getWidth() + "x" + screen.getHeight());
-        sendInfo(sender, "FPS: " + screen.getFps());
+        sendHeader(sender, tk("command.info.header", "SELECTED SCREEN", "選択中スクリーン"));
+        sendInfo(sender, tkp("command.info.name", "Name: {screen}", "名前: {screen}", Map.of("screen", screen.getName())));
+        sendInfo(sender, tkp("command.info.id", "ID: {id}", "ID: {id}", Map.of("id", screen.getId())));
+        sendInfo(sender, tkp("command.info.url", "URL: {url}", "URL: {url}", Map.of("url", screen.getCurrentUrl())));
+        sendInfo(sender, tkp("command.info.state", "State: {state}", "状態: {state}", Map.of("state", screen.getState())));
+        sendInfo(sender, tkp("command.info.size", "Size: {width}x{height}", "サイズ: {width}x{height}", Map.of("width", screen.getWidth(), "height", screen.getHeight())));
+        sendInfo(sender, tkp("command.info.fps", "FPS: {fps}", "FPS: {fps}", Map.of("fps", screen.getFps())));
         sendLine(sender);
         return true;
     }
@@ -699,16 +718,18 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 ? resolveScreen(args[1], player)
                 : plugin.getScreenManager().getSelected(player.getUniqueId());
         if (selected.isEmpty()) {
-            sendError(sender, args.length >= 2 ? "Screen not found." : "No selected screen.");
+            sendError(sender, args.length >= 2
+                ? tk("command.error.screen-not-found", "Screen not found.", "スクリーンが見つかりません。")
+                : tk("command.error.no-selected", "No selected screen.", "スクリーンが選択されていません。"));
             return true;
         }
 
         final boolean ok = plugin.getScreenManager().destroyScreen(selected.get().getId());
         if (ok) {
-            sendOk(sender, "Screen destroyed.");
+            sendOk(sender, tk("command.ok.screen-destroyed", "Screen destroyed.", "スクリーンを削除しました。"));
             player.playSound(player.getLocation(), Sound.ENTITY_EXPERIENCE_ORB_PICKUP, 0.8f, 0.8f);
         } else {
-            sendError(sender, "Destroy failed.");
+            sendError(sender, tk("command.error.destroy-failed", "Destroy failed.", "削除に失敗しました。"));
         }
         return true;
     }
@@ -741,20 +762,22 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         if (target.isEmpty()) {
-            sendError(sender, args.length == 2 ? "No selected screen." : "Screen not found.");
+            sendError(sender, args.length == 2
+                    ? tk("command.error.no-selected", "No selected screen.", "スクリーンが選択されていません。")
+                    : tk("command.error.screen-not-found", "Screen not found.", "スクリーンが見つかりません。"));
             return true;
         }
 
         final Screen screen = target.get();
         final int tileCount = screen.getMapIds().length;
         if (tileCount <= 0) {
-            sendError(sender, "Screen has no map tiles.");
+            sendError(sender, tk("command.error.no-map-tiles", "Screen has no map tiles.", "スクリーンにマップタイルがありません。"));
             return true;
         }
 
         final Optional<List<Integer>> parsed = parseTileRange(rangeExpr, screen.getWidth(), screen.getHeight());
         if (parsed.isEmpty()) {
-            sendError(sender, "Invalid tile range: " + rangeExpr);
+            sendError(sender, tkp("command.error.invalid-tile-range", "Invalid tile range: {range}", "タイル範囲が不正です: {range}", Map.of("range", rangeExpr)));
             sendInfo(sender, "Use all/odd/even, x-y coordinates, or 1-based linear indexes.");
             sendInfo(sender, "Examples: 1-2, 1-1:3-2, 1..3, 1,4,6..8");
             sendInfo(sender, "Coordinate bounds: x=1-" + screen.getWidth() + ", y=1-" + screen.getHeight());
@@ -768,9 +791,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             supplied++;
         }
 
-        sendOk(sender, "Frame tiles supplied: " + supplied);
-        sendInfo(sender, "Screen: " + screen.getName() + " (" + screen.getId() + ")");
-        sendInfo(sender, "Tile range: " + rangeExpr + " (valid 1-" + tileCount + ")");
+        sendOk(sender, tkp("command.ok.frame-tiles-supplied", "Frame tiles supplied: {count}", "フレームタイルを配布しました: {count}", Map.of("count", supplied)));
+        sendInfo(sender, tkp("command.ok.frame-target", "Screen: {screen} ({id})", "スクリーン: {screen} ({id})", Map.of("screen", screen.getName(), "id", screen.getId())));
+        sendInfo(sender, tkp("command.ok.frame-range", "Tile range: {range} (valid 1-{max})", "タイル範囲: {range} (有効 1-{max})", Map.of("range", rangeExpr, "max", tileCount)));
         return true;
     }
 
@@ -937,20 +960,25 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             width = Integer.parseInt(args[2]);
             height = Integer.parseInt(args[3]);
         } catch (final NumberFormatException ex) {
-            sendError(sender, "Width/height must be integer.");
+            sendError(sender, tk("command.error.size-integer", "Width/height must be integer.", "幅と高さは整数で入力してください。"));
             return true;
         }
 
         final int maxWidth = plugin.getConfig().getInt("screen.max-width", 8);
         final int maxHeight = plugin.getConfig().getInt("screen.max-height", 8);
         if (width <= 0 || height <= 0 || width > maxWidth || height > maxHeight) {
-            sendError(sender, "Screen size must be 1.." + maxWidth + " x 1.." + maxHeight);
+            sendError(sender, tkp(
+                    "command.error.screen-size-range",
+                    "Screen size must be 1..{maxWidth} x 1..{maxHeight}",
+                    "スクリーンサイズは 1..{maxWidth} x 1..{maxHeight} の範囲で指定してください。",
+                    Map.of("maxWidth", maxWidth, "maxHeight", maxHeight)
+            ));
             return true;
         }
 
         final Optional<Screen> resized = plugin.getScreenManager().resizeScreen(target.get().getId(), width, height);
         if (resized.isEmpty()) {
-            sendError(sender, "Resize failed.");
+            sendError(sender, tk("command.error.resize-failed", "Resize failed.", "リサイズに失敗しました。"));
             return true;
         }
 
@@ -961,8 +989,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         final MapDeliverySummary summary = giveScreenMaps(player, resized.get(), detectAutoFillPreference(player, resized.get()) == (byte) 1);
-        sendOk(sender, "Screen resized to " + width + "x" + height + ".");
-        sendInfo(sender, "Map total: " + summary.totalMaps() + " (direct=" + summary.directMaps() + ", bundles=" + summary.bundleBoxes() + ")");
+        sendOk(sender, tkp("command.ok.screen-resized", "Screen resized to {width}x{height}.", "スクリーンを {width}x{height} にリサイズしました。", Map.of("width", width, "height", height)));
+        sendInfo(sender, tkp("command.ok.created.map-total", "Map total: {total} (direct={direct}, bundles={bundles})", "マップ総数: {total} (直接={direct}, バンドル={bundles})", Map.of("total", summary.totalMaps(), "direct", summary.directMaps(), "bundles", summary.bundleBoxes())));
         return true;
     }
 
@@ -979,29 +1007,29 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if ("language".equalsIgnoreCase(args[1])) {
             final String language = args[2].toLowerCase(Locale.ROOT).replace('_', '-');
             if (!"en".equals(language) && !"ja".equals(language) && !"ja-jp".equals(language)) {
-                sendError(sender, "Value must be en, ja or ja-JP.");
+                sendError(sender, tk("command.error.language-value", "Value must be en, ja or ja-JP.", "値は en, ja, ja-JP のいずれかで指定してください。"));
                 return true;
             }
             plugin.getConfig().set("ui.language", language);
             plugin.saveConfig();
-            sendOk(sender, "language updated: " + language);
+            sendOk(sender, tkp("command.ok.language-updated", "language updated: {language}", "language を更新しました: {language}", Map.of("language", language)));
             return true;
         }
 
         if (!"simulate_particle".equalsIgnoreCase(args[1])) {
-            sendError(sender, "Unknown config key: " + args[1]);
+            sendError(sender, tkp("command.error.unknown-config", "Unknown config key: {key}", "不明な設定キーです: {key}", Map.of("key", args[1])));
             return true;
         }
 
         final String value = args[2].toLowerCase(Locale.ROOT);
         if (!"end_rod".equals(value) && !"flame".equals(value)) {
-            sendError(sender, "Value must be end_rod or flame.");
+            sendError(sender, tk("command.error.simulate-particle-value", "Value must be end_rod or flame.", "値は end_rod または flame を指定してください。"));
             return true;
         }
 
         plugin.getConfig().set("ui.simulate-particle", value);
         plugin.saveConfig();
-        sendOk(sender, "simulate_particle updated: " + value);
+        sendOk(sender, tkp("command.ok.simulate-particle-updated", "simulate_particle updated: {value}", "simulate_particle を更新しました: {value}", Map.of("value", value)));
         return true;
     }
 
