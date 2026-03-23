@@ -20,9 +20,10 @@ public final class UrlSecurityValidator {
      * Validates whether a URL is allowed by config.
      */
     public static ValidationResult validate(final String rawUrl, final FileConfiguration config) {
+        final String normalizedInput = normalizeInput(rawUrl);
         URI uri;
         try {
-            uri = URI.create(rawUrl);
+            uri = URI.create(normalizedInput);
         } catch (final Exception ex) {
             return ValidationResult.invalid("Invalid URL format.");
         }
@@ -66,6 +67,21 @@ public final class UrlSecurityValidator {
         }
 
         return ValidationResult.valid(uri.toString());
+    }
+
+    private static String normalizeInput(final String rawUrl) {
+        if (rawUrl == null) {
+            return "";
+        }
+        final String trimmed = rawUrl.trim();
+        if (trimmed.isBlank()) {
+            return trimmed;
+        }
+        final String lower = trimmed.toLowerCase(java.util.Locale.ROOT);
+        if (lower.startsWith("http://") || lower.startsWith("https://")) {
+            return trimmed;
+        }
+        return "https://" + trimmed;
     }
 
     private static boolean matchesWildcard(final String host, final String pattern) {

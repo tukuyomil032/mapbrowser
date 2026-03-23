@@ -44,6 +44,7 @@ import com.tukuyomil032.mapbrowser.util.RaycastUtil;
 import com.tukuyomil032.mapbrowser.util.UrlSecurityValidator;
 
 import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 /**
@@ -87,7 +88,9 @@ public final class InputHandler implements Listener {
             final var clickedBlock = java.util.Objects.requireNonNull(event.getClickedBlock(), "clicked block");
             final BlockFace clickedFace = event.getBlockFace();
             if (clickedFace == BlockFace.UP || clickedFace == BlockFace.DOWN) {
-                previewPlayer.sendMessage("Starter map preview works on wall faces only.");
+                sendInfo(previewPlayer,
+                        "Starter map preview works on wall faces only.",
+                        "スターターマップのプレビューは壁面でのみ使用できます。");
                 return;
             }
             showSimulationPreview(previewPlayer, previewScreen.get(), clickedBlock.getLocation(), clickedFace);
@@ -211,14 +214,18 @@ public final class InputHandler implements Listener {
 
         final String input = extractAnvilInput(event);
         if (input == null || input.isBlank()) {
-            player.sendMessage(session.mode() == AnvilMode.URL ? "URL is empty." : "Text is empty.");
+            if (session.mode() == AnvilMode.URL) {
+                sendError(player, "URL is empty.", "URLが空です。");
+            } else {
+                sendError(player, "Text is empty.", "テキストが空です。");
+            }
             player.closeInventory();
             return;
         }
 
         final Optional<Screen> target = plugin.getScreenManager().getScreen(session.screenId());
         if (target.isEmpty()) {
-            player.sendMessage("Target screen not found.");
+            sendError(player, "Target screen not found.", "対象スクリーンが見つかりません。");
             player.closeInventory();
             return;
         }
@@ -227,18 +234,20 @@ public final class InputHandler implements Listener {
         final Screen screen = target.get();
         if (session.mode() == AnvilMode.URL) {
             if (!validated.allowed()) {
-                player.sendMessage(validated.valueOrReason());
+                sendError(player, validated.valueOrReason(), validated.valueOrReason());
                 player.closeInventory();
                 return;
             }
             plugin.getScreenManager().ensureLoaded(screen.getId());
             screen.setCurrentUrl(validated.valueOrReason());
             plugin.getBrowserIPCClient().sendNavigate(screen.getId(), validated.valueOrReason());
-            player.sendMessage("Navigating: " + validated.valueOrReason());
+            sendInfo(player,
+                    "Navigating: " + validated.valueOrReason(),
+                    "移動先: " + validated.valueOrReason());
         } else {
             plugin.getScreenManager().ensureLoaded(screen.getId());
             plugin.getBrowserIPCClient().sendTextInput(screen.getId(), input);
-            player.sendMessage("Typed text into browser.");
+            sendInfo(player, "Typed text into browser.", "ブラウザにテキストを入力しました。");
         }
         player.closeInventory();
     }
@@ -246,14 +255,15 @@ public final class InputHandler implements Listener {
     private String extractAnvilInput(final InventoryClickEvent event) {
         final Inventory top = event.getView().getTopInventory();
 
-        final String renameText = extractRenameText(top);
+        final String renameText = extractRenameText(event);
         if (renameText != null) {
             return renameText;
         }
 
-        final String fromInputSlot = extractDisplayText(top.getItem(0));
-        if (fromInputSlot != null && !fromInputSlot.isBlank()) {
-            return fromInputSlot;
+        // In modern Paper, the confirmed text is usually reflected in output slot first.
+        final String fromOutputSlot = extractDisplayText(top.getItem(2));
+        if (fromOutputSlot != null && !fromOutputSlot.isBlank()) {
+            return fromOutputSlot;
         }
 
         final String fromClicked = extractDisplayText(event.getCurrentItem());
@@ -261,18 +271,29 @@ public final class InputHandler implements Listener {
             return fromClicked;
         }
 
-        final String fromOutputSlot = extractDisplayText(top.getItem(2));
-        if (fromOutputSlot != null && !fromOutputSlot.isBlank()) {
-            return fromOutputSlot;
+        final String fromInputSlot = extractDisplayText(top.getItem(0));
+        if (fromInputSlot != null && !fromInputSlot.isBlank()) {
+            return fromInputSlot;
         }
 
         return null;
     }
 
-    private String extractRenameText(final Inventory inventory) {
+    private String extractRenameText(final InventoryClickEvent event) {
         try {
-            final java.lang.reflect.Method method = inventory.getClass().getMethod("getRenameText");
-            final Object value = method.invoke(inventory);
+            final java.lang.reflect.Method viewMethod = event.getView().getClass().getMethod("getRenameText");
+            final Object viewValue = viewMethod.invoke(event.getView());
+            if (viewValue instanceof String text && !text.isBlank()) {
+                return text.trim();
+            }
+        } catch (final ReflectiveOperationException ignored) {
+            // Fallback to inventory reflection for compatibility.
+        }
+
+        final Inventory inventory = event.getView().getTopInventory();
+        try {
+            final java.lang.reflect.Method inventoryMethod = inventory.getClass().getMethod("getRenameText");
+            final Object value = inventoryMethod.invoke(inventory);
             if (value instanceof String text && !text.isBlank()) {
                 return text.trim();
             }
@@ -359,12 +380,16 @@ public final class InputHandler implements Listener {
         }
 
         if (tileIndex != 0) {
-            event.getPlayer().sendMessage("Use the first map tile (top-left) to auto-assemble.");
+            sendInfo(event.getPlayer(),
+                    "Use the first map tile (top-left) to auto-assemble.",
+                    "自動配置するには最初のマップタイル（左上）を使ってください。");
             return;
         }
 
         if (assembledScreens.contains(screenId)) {
-            event.getPlayer().sendMessage("This screen is already auto-assembled.");
+            sendInfo(event.getPlayer(),
+                    "This screen is already auto-assembled.",
+                    "このスクリーンはすでに自動配置済みです。");
             return;
         }
 
@@ -390,7 +415,7 @@ public final class InputHandler implements Listener {
 
         final Optional<Screen> screen = resolveScreenFromFrame(event.getPlayer(), frame);
         if (screen.isEmpty()) {
-            event.getPlayer().sendMessage("No selected screen. Use /mb select <screen>.");
+            sendError(event.getPlayer(), "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
             event.setCancelled(true);
             return;
         }
@@ -424,14 +449,14 @@ public final class InputHandler implements Listener {
 
         final Optional<Screen> screen = resolveScreenFromFrame(event.getPlayer(), frame);
         if (screen.isEmpty()) {
-            event.getPlayer().sendMessage("No selected screen. Use /mb select <screen>.");
+            sendError(event.getPlayer(), "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
             event.setCancelled(true);
             return;
         }
 
         final Optional<RaycastUtil.Vector2i> coords = resolveClickPosition(frame, screen.get(), event.getClickedPosition());
         if (coords.isEmpty()) {
-            event.getPlayer().sendMessage("Could not resolve click position on frame.");
+            sendError(event.getPlayer(), "Could not resolve click position on frame.", "フレーム上のクリック位置を特定できませんでした。");
             event.setCancelled(true);
             return;
         }
@@ -457,7 +482,7 @@ public final class InputHandler implements Listener {
 
         final Optional<Screen> screen = resolveScreenFromFrame(player, frame);
         if (screen.isEmpty()) {
-            player.sendMessage("No selected screen. Use /mb select <screen>.");
+            sendError(player, "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
             event.setCancelled(true);
             return;
         }
@@ -476,7 +501,7 @@ public final class InputHandler implements Listener {
         anvil.setItem(0, paper);
         anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.URL));
         player.openInventory(anvil);
-        player.sendMessage("Enter URL and click result slot to confirm.");
+        sendInfo(player, "Enter URL and click result slot to confirm.", "URLを入力し、結果スロットをクリックして確定してください。");
     }
 
     private void openTextInput(final Player player, final Screen screen) {
@@ -488,7 +513,28 @@ public final class InputHandler implements Listener {
         anvil.setItem(0, paper);
         anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.TEXT));
         player.openInventory(anvil);
-        player.sendMessage("Enter text and click result slot to type into browser.");
+        sendInfo(player, "Enter text and click result slot to type into browser.", "テキストを入力し、結果スロットをクリックして送信してください。");
+    }
+
+    private String resolveLanguage() {
+        final String configured = plugin.getConfig().getString("ui.language", "en");
+        if (configured == null) {
+            return "en";
+        }
+        final String normalized = configured.toLowerCase(Locale.ROOT);
+        return "ja".equals(normalized) ? "ja" : "en";
+    }
+
+    private String t(final String en, final String ja) {
+        return "ja".equals(resolveLanguage()) ? ja : en;
+    }
+
+    private void sendInfo(final Player player, final String en, final String ja) {
+        player.sendMessage(Component.text("• ", NamedTextColor.GRAY).append(Component.text(t(en, ja), NamedTextColor.WHITE)));
+    }
+
+    private void sendError(final Player player, final String en, final String ja) {
+        player.sendMessage(Component.text("[ERR] ", NamedTextColor.RED).append(Component.text(t(en, ja), NamedTextColor.WHITE)));
     }
 
     private boolean isConfigured(final Material held, final String path, final Material fallback) {
@@ -534,7 +580,9 @@ public final class InputHandler implements Listener {
         final BlockFace facing = anchorFrame.getFacing();
         final int[] right = rightVector(facing);
         if (right == null) {
-            player.sendMessage("This frame direction is not supported for auto-assembly.");
+            sendError(player,
+                    "This frame direction is not supported for auto-assembly.",
+                    "このフレームの向きでは自動配置に対応していません。");
             return;
         }
 
@@ -544,7 +592,9 @@ public final class InputHandler implements Listener {
         final int anchorRow = tileIndex / width;
 
         if (anchorCol != 0 || anchorRow != 0) {
-            player.sendMessage("Starter map must be tile 0 (top-left).");
+            sendError(player,
+                    "Starter map must be tile 0 (top-left).",
+                    "スターターマップはタイル0（左上）である必要があります。");
             return;
         }
 
@@ -596,16 +646,25 @@ public final class InputHandler implements Listener {
         final boolean completed = (placed + alreadyPlaced) == expected && blocked == 0 && failed == 0;
         if (completed) {
             assembledScreens.add(screen.getId());
-            player.sendMessage("MapBrowser auto-assembly completed: " + width + "x" + height);
+            sendInfo(player,
+                "MapBrowser auto-assembly completed: " + width + "x" + height,
+                "MapBrowser 自動配置が完了しました: " + width + "x" + height);
             return;
         }
 
         assembledScreens.remove(screen.getId());
-        player.sendMessage("MapBrowser auto-assembly partial: placed=" + placed
+        sendInfo(player,
+            "MapBrowser auto-assembly partial: placed=" + placed
                 + " already=" + alreadyPlaced
                 + " blocked=" + blocked
-                + " failed=" + failed + ".");
-        player.sendMessage("Clear blocked frames and place starter map again to retry.");
+                + " failed=" + failed + ".",
+            "MapBrowser 自動配置（部分完了）: 設置=" + placed
+                + " 既存=" + alreadyPlaced
+                + " 障害=" + blocked
+                + " 失敗=" + failed + "。");
+        sendInfo(player,
+            "Clear blocked frames and place starter map again to retry.",
+            "フレームの障害物を取り除いて、スターターマップを再設置してください。");
     }
 
     private ItemFrame findOrCreateFrame(final World world, final Location loc, final BlockFace facing) {

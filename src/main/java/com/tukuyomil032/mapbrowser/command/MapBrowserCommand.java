@@ -40,6 +40,8 @@ import com.tukuyomil032.mapbrowser.util.UrlSecurityValidator;
 
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
+import net.kyori.adventure.text.format.TextColor;
+import net.kyori.adventure.text.format.TextDecoration;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 /**
@@ -583,10 +585,14 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
         for (final Screen screen : screens.stream().sorted(Comparator.comparing(Screen::getCreatedAt)).toList()) {
             final boolean selected = selectedId != null && selectedId.equals(screen.getId());
+            final String selectedLabel = "ja".equals(resolveLanguage()) ? "選択中" : "SELECTED";
+            final String stateLabel = "ja".equals(resolveLanguage()) ? "状態" : "STATE";
             sender.sendMessage(Component.text()
-                    .append(Component.text(selected ? "[*] " : "[ ] ", selected ? NamedTextColor.GREEN : NamedTextColor.DARK_GRAY))
-                    .append(Component.text(screen.getName(), NamedTextColor.AQUA))
-                    .append(Component.text(" :: " + screen.getId(), NamedTextColor.GRAY))
+                .append(Component.text(selected ? "◆ " : "◇ ", selected ? TextColor.color(0x22C55E) : NamedTextColor.DARK_GRAY))
+                .append(Component.text(screen.getName(), TextColor.color(0x67E8F9)).decoration(TextDecoration.BOLD, true))
+                .append(Component.text("  " + stateLabel + ": " + screen.getState(), TextColor.color(0x94A3B8)))
+                .append(Component.text("  ID: " + screen.getId(), NamedTextColor.GRAY))
+                .append(selected ? Component.text("  [" + selectedLabel + "]", TextColor.color(0x22C55E)).decoration(TextDecoration.BOLD, true) : Component.empty())
                     .build());
         }
         sendLine(sender);
@@ -1623,23 +1629,167 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
     }
 
     private void sendHeader(final CommandSender sender, final String title) {
-        sender.sendMessage(Component.text("+----------------------------------------+", NamedTextColor.DARK_GRAY));
-        sender.sendMessage(Component.text("| ", NamedTextColor.AQUA).append(Component.text(title, NamedTextColor.WHITE)));
+        final String localizedTitle = localizeMessage(title);
+        sender.sendMessage(gradientLine(50, TextColor.color(0x1E293B), TextColor.color(0x334155)));
+        sender.sendMessage(Component.text("  ")
+                .append(gradientText(localizedTitle, TextColor.color(0x38BDF8), TextColor.color(0x22D3EE)))
+                .decoration(TextDecoration.BOLD, true));
+        sender.sendMessage(gradientLine(50, TextColor.color(0x1E293B), TextColor.color(0x334155)));
     }
 
     private void sendLine(final CommandSender sender) {
-        sender.sendMessage(Component.text("+----------------------------------------+", NamedTextColor.DARK_GRAY));
+        sender.sendMessage(gradientLine(50, TextColor.color(0x1E293B), TextColor.color(0x334155)));
     }
 
     private void sendOk(final CommandSender sender, final String message) {
-        sender.sendMessage(Component.text("[OK] ", NamedTextColor.GREEN).append(Component.text(message, NamedTextColor.WHITE)));
+        final String localized = localizeMessage(message);
+        sender.sendMessage(
+                Component.text("✔ ", TextColor.color(0x22C55E)).decoration(TextDecoration.BOLD, true)
+                        .append(Component.text(localized, TextColor.color(0xF8FAFC)).decoration(TextDecoration.BOLD, true))
+        );
     }
 
     private void sendError(final CommandSender sender, final String message) {
-        sender.sendMessage(Component.text("[ERR] ", NamedTextColor.RED).append(Component.text(message, NamedTextColor.WHITE)));
+        final String localized = localizeMessage(message);
+        sender.sendMessage(
+                Component.text("✖ ", TextColor.color(0xEF4444)).decoration(TextDecoration.BOLD, true)
+                        .append(Component.text(localized, TextColor.color(0xF8FAFC)).decoration(TextDecoration.BOLD, true))
+        );
     }
 
     private void sendInfo(final CommandSender sender, final String message) {
-        sender.sendMessage(Component.text("[i] ", NamedTextColor.GRAY).append(Component.text(message, NamedTextColor.WHITE)));
+        final String localized = localizeMessage(message);
+        sender.sendMessage(
+                Component.text("• ", TextColor.color(0x60A5FA)).decoration(TextDecoration.BOLD, true)
+                        .append(Component.text(localized, TextColor.color(0xE2E8F0)))
+        );
+    }
+
+    private Component gradientLine(final int length, final TextColor from, final TextColor to) {
+        final String line = "─".repeat(Math.max(1, length));
+        return gradientText(line, from, to);
+    }
+
+    private Component gradientText(final String text, final TextColor from, final TextColor to) {
+        if (text == null || text.isEmpty()) {
+            return Component.empty();
+        }
+        final int n = text.length();
+        if (n == 1) {
+            return Component.text(text, from);
+        }
+        final int fr = from.red();
+        final int fg = from.green();
+        final int fb = from.blue();
+        final int tr = to.red();
+        final int tg = to.green();
+        final int tb = to.blue();
+
+        Component out = Component.empty();
+        for (int i = 0; i < n; i++) {
+            final float t = (float) i / (float) (n - 1);
+            final int r = Math.round(fr + (tr - fr) * t);
+            final int g = Math.round(fg + (tg - fg) * t);
+            final int b = Math.round(fb + (tb - fb) * t);
+            out = out.append(Component.text(String.valueOf(text.charAt(i)), TextColor.color(r, g, b)));
+        }
+        return out;
+    }
+
+    private String localizeMessage(final String source) {
+        if (source == null) {
+            return "";
+        }
+        final String language = resolveLanguage();
+        if (!"ja".equals(language)) {
+            return source;
+        }
+
+        String result = source;
+        result = result.replace("MAPBROWSER COMMANDS", "MapBrowser コマンド一覧");
+        result = result.replace("SCREEN CREATED", "スクリーン作成完了");
+        result = result.replace("SCREEN LIST", "スクリーン一覧");
+        result = result.replace("SELECTED SCREEN", "選択中スクリーン");
+        result = result.replace("MAPBROWSER STATUS", "MapBrowser ステータス");
+        result = result.replace("DEPENDENCY CHECK", "依存関係チェック");
+        result = result.replace("MAPBROWSER PERF", "MapBrowser パフォーマンス");
+        result = result.replace("MAPBROWSER PERFBENCH", "MapBrowser 性能計測");
+        result = result.replace("MAPBROWSER PERFBENCH RESULT", "MapBrowser 性能計測結果");
+
+        result = result.replace("Player only command.", "このコマンドはプレイヤー専用です。");
+        result = result.replace("No permission.", "権限がありません。");
+        result = result.replace("No selected screen.", "スクリーンが選択されていません。");
+        result = result.replace("No selected screen. Create/select one first.", "スクリーンが選択されていません。先に作成または選択してください。");
+        result = result.replace("Screen not found.", "スクリーンが見つかりません。");
+        result = result.replace("Screen not found: ", "スクリーンが見つかりません: ");
+        result = result.replace("Screen not found for perf detail: ", "パフォーマンス詳細対象のスクリーンが見つかりません: ");
+        result = result.replace("No screens available.", "利用可能なスクリーンがありません。");
+        result = result.replace("Unknown subcommand. Use /mb", "不明なサブコマンドです。/mb を使用してください。");
+        result = result.replace("Config reloaded.", "設定を再読み込みしました。");
+        result = result.replace("Unknown item type.", "不明なアイテム種別です。");
+        result = result.replace("Unknown admin command.", "不明なadminコマンドです。");
+        result = result.replace("Unsupported command.", "未対応のコマンドです。");
+        result = result.replace("Text is empty.", "テキストが空です。");
+        result = result.replace("Usage: ", "使用法: ");
+        result = result.replace("Example: ", "例: ");
+        result = result.replace("Format: ", "形式: ");
+        result = result.replace("Value must be en or ja.", "値は en または ja を指定してください。");
+        result = result.replace("Value must be end_rod or flame.", "値は end_rod または flame を指定してください。");
+        result = result.replace("Unknown config key: ", "不明な設定キー: ");
+        result = result.replace("Duration must be integer seconds.", "計測秒数は整数で指定してください。");
+        result = result.replace("Duration must be 5..600 seconds.", "計測秒数は5..600の範囲で指定してください。");
+        result = result.replace("Invalid UUID format.", "UUID形式が不正です。");
+        result = result.replace("Invalid URL format.", "URLの形式が不正です。");
+        result = result.replace("Only http/https URL is allowed.", "http/https のURLのみ許可されています。");
+        result = result.replace("HTTP is disabled by server config.", "サーバー設定でHTTPが無効化されています。");
+        result = result.replace("URL host is missing.", "URLのホストが不足しています。");
+        result = result.replace("Access to local/private network is blocked.", "ローカル/プライベートネットワークへのアクセスは禁止されています。");
+        result = result.replace("Host is blocked by blacklist.", "このホストはブラックリストで禁止されています。");
+        result = result.replace("Host is not included in whitelist.", "このホストはホワイトリストに含まれていません。");
+        result = result.replace("Load failed.", "ロードに失敗しました。");
+        result = result.replace("Unload failed.", "アンロードに失敗しました。");
+        result = result.replace("Destroy failed.", "削除に失敗しました。");
+        result = result.replace("Screen destroyed.", "スクリーンを削除しました。");
+        result = result.replace("Resize failed.", "リサイズに失敗しました。");
+        result = result.replace("Typed text into browser.", "ブラウザにテキストを入力しました。");
+        result = result.replace("Screen has no map tiles.", "このスクリーンにはマップタイルがありません。");
+        result = result.replace("Inventory full. Dropped item on ground.", "インベントリが満杯のため、地面にドロップしました。");
+        result = result.replace("Frame tiles supplied: ", "フレームタイルを配布: ");
+        result = result.replace("Map total: ", "マップ合計: ");
+        result = result.replace("Tile range: ", "タイル範囲: ");
+        result = result.replace("Coordinate bounds: ", "座標範囲: ");
+        result = result.replace("Use all/odd/even, x-y coordinates, or 1-based linear indexes.", "all/odd/even、x-y座標、または1始まりの線形インデックスを使用できます。");
+        result = result.replace("Invalid tile range: ", "無効なタイル範囲: ");
+        result = result.replace("Exited browser operation mode.", "ブラウザ操作モードを終了しました。");
+        result = result.replace("Navigating: ", "移動先: ");
+        result = result.replace("Given item: ", "アイテムを付与: ");
+        result = result.replace("Sent command: ", "コマンド送信: ");
+        result = result.replace("Sent CLOSE for ", "CLOSEを送信: ");
+        result = result.replace("Selected screen: ", "選択したスクリーン: ");
+        result = result.replace("Selected latest screen: ", "最新スクリーンを選択: ");
+        result = result.replace("Screen loaded: ", "スクリーンをロード: ");
+        result = result.replace("Screen unloaded: ", "スクリーンをアンロード: ");
+        result = result.replace("FPS updated: ", "FPSを更新: ");
+        result = result.replace("language updated: ", "言語を更新: ");
+        result = result.replace("Screen resized to ", "スクリーンをリサイズ: ");
+        result = result.replace("Screen size must be ", "スクリーンサイズは ");
+        result = result.replace("Screen limit reached in this world (max=", "このワールドのスクリーン上限に達しています (max=");
+        result = result.replace("Width/height must be integer.", "幅/高さは整数で入力してください。");
+        result = result.replace("FPS must be integer.", "FPSは整数で入力してください。");
+        result = result.replace("FPS must be ", "FPSは ");
+        result = result.replace("Screen name already exists: ", "同名のスクリーンが既に存在します: ");
+        result = result.replace("Screens: ", "スクリーン数: ");
+        result = result.replace("IPC connected: ", "IPC接続: ");
+        result = result.replace("IPC health: ", "IPC状態: ");
+        result = result.replace("READY age: ", "READY経過: ");
+        result = result.replace("never", "未受信");
+        result = result.replace("Name: ", "名前: ");
+        result = result.replace("ID: ", "ID: ");
+        result = result.replace("State: ", "状態: ");
+        result = result.replace("Size: ", "サイズ: ");
+        result = result.replace("URL: ", "URL: ");
+        result = result.replace("simulate_particle updated: ", "simulate_particle を更新: ");
+
+        return result;
     }
 }
