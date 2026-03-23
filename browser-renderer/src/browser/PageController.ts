@@ -9,6 +9,31 @@ import { resolveYouTubeUrl } from "../youtube/YtDlpBridge.js";
 import { logger } from "../util/logger.js";
 
 export class PageController {
+	private static readonly FPS_LEVEL1_PROCESS_MS = PageController.envInt(
+		"MAPBROWSER_FPS_LEVEL1_PROCESS_MS",
+		50,
+		10,
+		400,
+	);
+	private static readonly FPS_LEVEL2_PROCESS_MS = PageController.envInt(
+		"MAPBROWSER_FPS_LEVEL2_PROCESS_MS",
+		80,
+		10,
+		500,
+	);
+	private static readonly IDLE_SKIP_FRAME_THRESHOLD = PageController.envInt(
+		"MAPBROWSER_IDLE_SKIP_FRAME_THRESHOLD",
+		20,
+		1,
+		500,
+	);
+	private static readonly METRICS_WINDOW_MS = PageController.envInt(
+		"MAPBROWSER_METRICS_WINDOW_MS",
+		10_000,
+		1000,
+		120_000,
+	);
+
 	private browser: Browser | null = null;
 	private page: Page | null = null;
 	private cdp: CDPSession | null = null;
@@ -306,7 +331,7 @@ export class PageController {
 				this.maybeLogMetrics();
 				const baseIntervalMs = Math.floor(1000 / Math.max(1, this.adaptiveFps));
 				const idlePenaltyMs =
-					this.consecutiveSkipFrames > 20
+					this.consecutiveSkipFrames > PageController.IDLE_SKIP_FRAME_THRESHOLD
 						? Math.max(
 								baseIntervalMs,
 								this.isLikelyVideoUrl(this.currentUrl) ? 120 : 333,
@@ -342,9 +367,9 @@ export class PageController {
 		const minFps = isVideo ? 4 : 2;
 		let nextAdaptive = this.contentAwareRequestedFps;
 
-		if (this.smoothedProcessMs > 80) {
+		if (this.smoothedProcessMs > PageController.FPS_LEVEL2_PROCESS_MS) {
 			nextAdaptive = 4;
-		} else if (this.smoothedProcessMs > 50) {
+		} else if (this.smoothedProcessMs > PageController.FPS_LEVEL1_PROCESS_MS) {
 			nextAdaptive = 6;
 		}
 
@@ -395,7 +420,7 @@ export class PageController {
 	private maybeLogMetrics(): void {
 		const now = Date.now();
 		const elapsedMs = now - this.metricsWindowStartedAt;
-		if (elapsedMs < 10_000) {
+		if (elapsedMs < PageController.METRICS_WINDOW_MS) {
 			return;
 		}
 
@@ -408,6 +433,11 @@ export class PageController {
 		logger.info(
 			`Perf: fps=${processedFps.toFixed(2)} adaptive=${this.adaptiveFps} frame=${this.metricsFrameEmitted} delta=${this.metricsDeltaEmitted} skipRatio=${(skipRatio * 100).toFixed(1)}% processMs=${this.smoothedProcessMs.toFixed(1)}`,
 		);
+		if (skipRatio > 0.95) {
+			logger.debug(
+				"Perf hint: mostly static scene, consider lowering requested FPS.",
+			);
+		}
 
 		this.resetMetricsWindow();
 	}
@@ -418,5 +448,22 @@ export class PageController {
 		this.metricsSkipped = 0;
 		this.metricsFrameEmitted = 0;
 		this.metricsDeltaEmitted = 0;
+	}
+
+	private static envInt(
+		name: string,
+		fallback: number,
+		min: number,
+		max: number,
+	): number {
+		const raw = process.env[name];
+		if (!raw) {
+			return fallback;
+		}
+		const parsed = Number.parseInt(raw, 10);
+		if (!Number.isFinite(parsed)) {
+			return fallback;
+		}
+		return Math.max(min, Math.min(max, parsed));
 	}
 }
