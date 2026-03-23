@@ -1,5 +1,10 @@
 messages:
   keys:
+    # 命名規約:
+    # - command.<group>.<name> は /mb コマンド出力
+    # - input.<group>.<name> はアイテム/Anvil入力フロー出力
+    # - common.<name> は共通トークン
+    # プレースホルダーは {screen}, {fps}, {url} の形式を使用
     command.help.title: "MapBrowser コマンド一覧"
     command.help.create: "/mb create <w> <h> [name] [--autofill]"
     command.help.menu: "/mb menu (alias: gui)"

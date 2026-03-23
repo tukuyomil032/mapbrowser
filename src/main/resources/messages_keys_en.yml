@@ -1,5 +1,10 @@
 messages:
   keys:
+    # Naming convention:
+    # - command.<group>.<name> for /mb command output
+    # - input.<group>.<name> for item/anvil input flow output
+    # - common.<name> for reusable shared tokens
+    # Placeholders use brace form, e.g. {screen}, {fps}, {url}
     command.help.title: "MAPBROWSER COMMANDS"
     command.help.create: "/mb create <w> <h> [name] [--autofill]"
     command.help.menu: "/mb menu (alias: gui)"
