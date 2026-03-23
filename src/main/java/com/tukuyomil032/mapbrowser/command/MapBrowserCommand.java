@@ -655,7 +655,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         final List<Screen> screens = new ArrayList<>(plugin.getScreenManager().getAllScreens());
-        sendHeader(sender, "SCREEN LIST (" + screens.size() + ")");
+        sendHeader(sender, tkp("command.list.header", "SCREEN LIST ({count})", "スクリーン一覧 ({count})", Map.of("count", screens.size())));
         UUID selectedId = null;
         if (sender instanceof Player player) {
             selectedId = plugin.getScreenManager().getSelected(player.getUniqueId())
@@ -746,8 +746,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         if (args.length < 2) {
             sendError(sender, tk("command.usage.give-frame", "Usage: /mb give-frame <screen-id|screen-name> <tile-range>", "使用法: /mb give-frame <screen-id|screen-name> <tile-range>"));
-            sendInfo(sender, "Example: /mb gif test 1-2");
-            sendInfo(sender, "Format: all, odd, even, x-y, x1-y1:x2-y2, n, n..m, n,m,p..q");
+            sendInfo(sender, tk("command.help.give-frame-example", "Example: /mb gif test 1-2", "例: /mb gif test 1-2"));
+            sendInfo(sender, tk("command.help.give-frame-format", "Format: all, odd, even, x-y, x1-y1:x2-y2, n, n..m, n,m,p..q", "形式: all, odd, even, x-y, x1-y1:x2-y2, n, n..m, n,m,p..q"));
             return true;
         }
 
@@ -778,9 +778,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         final Optional<List<Integer>> parsed = parseTileRange(rangeExpr, screen.getWidth(), screen.getHeight());
         if (parsed.isEmpty()) {
             sendError(sender, tkp("command.error.invalid-tile-range", "Invalid tile range: {range}", "タイル範囲が不正です: {range}", Map.of("range", rangeExpr)));
-            sendInfo(sender, "Use all/odd/even, x-y coordinates, or 1-based linear indexes.");
-            sendInfo(sender, "Examples: 1-2, 1-1:3-2, 1..3, 1,4,6..8");
-            sendInfo(sender, "Coordinate bounds: x=1-" + screen.getWidth() + ", y=1-" + screen.getHeight());
+            sendInfo(sender, tk("command.help.tile-range-usage", "Use all/odd/even, x-y coordinates, or 1-based linear indexes.", "all/odd/even、x-y座標、または1始まりの線形インデックスを使用してください。"));
+            sendInfo(sender, tk("command.help.tile-range-examples", "Examples: 1-2, 1-1:3-2, 1..3, 1,4,6..8", "例: 1-2, 1-1:3-2, 1..3, 1,4,6..8"));
+            sendInfo(sender, tkp("command.help.tile-range-bounds", "Coordinate bounds: x=1-{width}, y=1-{height}", "座標範囲: x=1-{width}, y=1-{height}", Map.of("width", screen.getWidth(), "height", screen.getHeight())));
             return true;
         }
 

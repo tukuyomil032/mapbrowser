@@ -88,9 +88,10 @@ public final class InputHandler implements Listener {
             final var clickedBlock = java.util.Objects.requireNonNull(event.getClickedBlock(), "clicked block");
             final BlockFace clickedFace = event.getBlockFace();
             if (clickedFace == BlockFace.UP || clickedFace == BlockFace.DOWN) {
-                sendInfo(previewPlayer,
-                        "Starter map preview works on wall faces only.",
-                        "スターターマップのプレビューは壁面でのみ使用できます。");
+                sendInfoKey(previewPlayer,
+                    "input.info.preview-wall-only",
+                    "Starter map preview works on wall faces only.",
+                    "スターターマップのプレビューは壁面でのみ使用できます。");
                 return;
             }
             showSimulationPreview(previewPlayer, previewScreen.get(), clickedBlock.getLocation(), clickedFace);
@@ -268,11 +269,13 @@ public final class InputHandler implements Listener {
             }
             screen.setCurrentUrl(validated.valueOrReason());
             plugin.getBrowserIPCClient().sendNavigate(screen.getId(), validated.valueOrReason());
-            sendInfo(
+                sendInfoKey(
                     player,
-                    tkp("input.info.navigating", "Navigating: {url}", "移動先: {url}", java.util.Map.of("url", validated.valueOrReason())),
-                    tkp("input.info.navigating", "Navigating: {url}", "移動先: {url}", java.util.Map.of("url", validated.valueOrReason()))
-            );
+                    "input.info.navigating",
+                    "Navigating: {url}",
+                    "移動先: {url}",
+                    java.util.Map.of("url", validated.valueOrReason())
+                );
         } else {
             if (!ensureInteractable(player, screen)) {
                 player.closeInventory();
@@ -540,11 +543,10 @@ public final class InputHandler implements Listener {
         anvil.setItem(0, paper);
         anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.URL));
         player.openInventory(anvil);
-        sendInfo(
-            player,
-            plugin.getMessageLocalizer().translateKey(language, "input.anvil.url.hint", "Enter URL and click result slot to confirm."),
-            plugin.getMessageLocalizer().translateKey(language, "input.anvil.url.hint", "URLを入力し、結果スロットをクリックして確定してください。")
-        );
+        sendInfoKey(player,
+            "input.anvil.url.hint",
+            "Enter URL and click result slot to confirm.",
+            "URLを入力し、結果スロットをクリックして確定してください。");
     }
 
     private void openTextInput(final Player player, final Screen screen) {
@@ -561,11 +563,10 @@ public final class InputHandler implements Listener {
         anvil.setItem(0, paper);
         anvilSessions.put(player.getUniqueId(), new AnvilSession(screen.getId(), AnvilMode.TEXT));
         player.openInventory(anvil);
-        sendInfo(
-            player,
-            plugin.getMessageLocalizer().translateKey(language, "input.anvil.text.hint", "Enter text and click result slot to type into browser."),
-            plugin.getMessageLocalizer().translateKey(language, "input.anvil.text.hint", "テキストを入力し、結果スロットをクリックして送信してください。")
-        );
+        sendInfoKey(player,
+            "input.anvil.text.hint",
+            "Enter text and click result slot to type into browser.",
+            "テキストを入力し、結果スロットをクリックして送信してください。");
     }
 
     private String resolveLanguage() {
@@ -580,10 +581,6 @@ public final class InputHandler implements Listener {
     private String t(final String en, final String ja) {
         final String source = resolveLanguage().startsWith("ja") ? ja : en;
         return plugin.getMessageLocalizer().translateRaw(resolveLanguage(), source);
-    }
-
-    private void sendInfo(final Player player, final String en, final String ja) {
-        player.sendMessage(Component.text("• ", NamedTextColor.GRAY).append(Component.text(t(en, ja), NamedTextColor.WHITE)));
     }
 
     private void sendError(final Player player, final String en, final String ja) {
