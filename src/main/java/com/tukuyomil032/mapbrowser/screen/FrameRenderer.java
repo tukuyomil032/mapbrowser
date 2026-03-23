@@ -9,10 +9,15 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.logging.Level;
 
 import org.bukkit.Bukkit;
+import org.bukkit.FluidCollisionMode;
+import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.map.MapCanvas;
 import org.bukkit.map.MapRenderer;
 import org.bukkit.map.MapView;
+import org.bukkit.util.RayTraceResult;
+import org.bukkit.util.Vector;
 
 import com.tukuyomil032.mapbrowser.MapBrowserPlugin;
 import com.tukuyomil032.mapbrowser.util.MapColorUtil;
@@ -314,6 +319,61 @@ public final class FrameRenderer {
         return dirtyRects[tileIndex];
     }
 
+    private boolean hasLineOfSight(final Player player, final Screen screen) {
+        final boolean requireLos = plugin.getConfig().getBoolean("screen.require-line-of-sight", false);
+        if (!requireLos) {
+            return true;
+        }
+
+        final World world = player.getWorld();
+        if (!world.getName().equals(screen.getWorldName())) {
+            return false;
+        }
+
+        final Location eye = player.getEyeLocation();
+        final Location target = new Location(
+                world,
+                screen.getOriginX() + 0.5,
+                screen.getOriginY() + 0.5,
+                screen.getOriginZ() + 0.5
+        );
+        final Vector direction = target.toVector().subtract(eye.toVector());
+        final double distance = direction.length();
+        if (distance <= 0.001) {
+            return true;
+        }
+
+        direction.normalize();
+        final RayTraceResult hit = world.rayTraceBlocks(eye, direction, distance, FluidCollisionMode.NEVER, true);
+        if (hit == null || hit.getHitBlock() == null) {
+            return true;
+        }
+
+        final var hitBlock = hit.getHitBlock();
+        if (hitBlock == null) {
+            return true;
+        }
+        final int hitX = hitBlock.getX();
+        final int hitY = hitBlock.getY();
+        final int hitZ = hitBlock.getZ();
+        return hitX == screen.getOriginX() && hitY == screen.getOriginY() && hitZ == screen.getOriginZ();
+    }
+
+    private long renderIntervalMillis(final Player player, final Screen screen) {
+        final double dx = player.getLocation().getX() - screen.getOriginX();
+        final double dy = player.getLocation().getY() - screen.getOriginY();
+        final double dz = player.getLocation().getZ() - screen.getOriginZ();
+        final double distance = Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
+
+        if (distance > 32.0D) {
+            return 250L;
+        }
+        if (distance > 20.0D) {
+            return 120L;
+        }
+        return 0L;
+    }
+
     private static Color[] buildPaletteColors() {
         final int[] palette = MapColorUtil.MAP_COLORS_RGB;
         final Color[] colors = new Color[palette.length];
@@ -327,6 +387,7 @@ public final class FrameRenderer {
         private final UUID screenId;
         private final int tileIndex;
         private final Map<UUID, Integer> renderedRevisionByPlayer = new ConcurrentHashMap<>();
+        private final Map<UUID, Long> lastRenderedAtByPlayer = new ConcurrentHashMap<>();
 
         private ScreenTileRenderer(final UUID screenId, final int tileIndex) {
             super(false);
@@ -344,7 +405,23 @@ public final class FrameRenderer {
             final UUID playerId = player.getUniqueId();
             if (!isWithinRenderDistance(player, screen)) {
                 renderedRevisionByPlayer.remove(playerId);
+                lastRenderedAtByPlayer.remove(playerId);
                 return;
+            }
+
+            if (!hasLineOfSight(player, screen)) {
+                renderedRevisionByPlayer.remove(playerId);
+                lastRenderedAtByPlayer.remove(playerId);
+                return;
+            }
+
+            final long minIntervalMillis = renderIntervalMillis(player, screen);
+            if (minIntervalMillis > 0L) {
+                final long now = System.currentTimeMillis();
+                final Long previous = lastRenderedAtByPlayer.get(playerId);
+                if (previous != null && now - previous < minIntervalMillis) {
+                    return;
+                }
             }
 
             final int revision = tileRevision(screen, tileIndex);
@@ -385,6 +462,7 @@ public final class FrameRenderer {
             }
 
             renderedRevisionByPlayer.put(playerId, revision);
+            lastRenderedAtByPlayer.put(playerId, System.currentTimeMillis());
         }
     }
 

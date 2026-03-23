@@ -16,6 +16,7 @@ export class PageController {
 	private readonly widthMaps: number;
 	private readonly heightMaps: number;
 	private requestedFps: number;
+	private contentAwareRequestedFps: number;
 	private adaptiveFps: number;
 	private readonly onFrame: (result: ProcessResult) => void;
 	private readonly onUrlChanged: (url: string) => void;
@@ -27,6 +28,8 @@ export class PageController {
 	private droppedByThrottle = 0;
 	private processedSinceTune = 0;
 	private lastTuneAtMs = Date.now();
+	private currentUrl = "about:blank";
+	private consecutiveSkipFrames = 0;
 
 	public constructor(
 		widthMaps: number,
@@ -39,21 +42,32 @@ export class PageController {
 		this.widthMaps = widthMaps;
 		this.heightMaps = heightMaps;
 		this.requestedFps = Math.max(1, fps);
-		this.adaptiveFps = this.requestedFps;
+		this.contentAwareRequestedFps = this.requestedFps;
+		this.adaptiveFps = this.contentAwareRequestedFps;
 		this.onFrame = onFrame;
 		this.onUrlChanged = onUrlChanged;
 		this.onPageLoaded = onPageLoaded;
 	}
 
 	public async open(): Promise<void> {
-		this.browser = await chromium.launch({ headless: true });
+		this.browser = await chromium.launch({
+			headless: true,
+			args: [
+				"--disable-gpu-vsync",
+				"--disable-frame-rate-limit",
+				"--enable-gpu",
+			],
+		});
 		const context = await this.browser.newContext({
 			viewport: { width: this.widthMaps * 128, height: this.heightMaps * 128 },
 			ignoreHTTPSErrors: true,
 		});
 		this.page = await context.newPage();
 		this.page.on("framenavigated", () => {
-			this.onUrlChanged(this.page?.url() ?? "about:blank");
+			const url = this.page?.url() ?? "about:blank";
+			this.currentUrl = url;
+			this.applyContentFpsPolicy(url);
+			this.onUrlChanged(url);
 		});
 		this.page.on("load", () => {
 			this.onPageLoaded();
@@ -83,6 +97,8 @@ export class PageController {
 				logger.warn("yt-dlp resolve failed, fallback to raw URL", error);
 			}
 		}
+		this.currentUrl = target;
+		this.applyContentFpsPolicy(target);
 		await this.page.goto(target, { waitUntil: "domcontentloaded" });
 	}
 
@@ -117,12 +133,14 @@ export class PageController {
 
 	public async setFps(fps: number): Promise<void> {
 		this.requestedFps = Math.max(1, fps);
-		this.adaptiveFps = this.requestedFps;
+		this.applyContentFpsPolicy(this.currentUrl);
+		this.adaptiveFps = this.contentAwareRequestedFps;
 		this.nextAllowedFrameAtMs = 0;
 		this.smoothedProcessMs = 0;
 		this.droppedByThrottle = 0;
 		this.processedSinceTune = 0;
 		this.lastTuneAtMs = Date.now();
+		this.consecutiveSkipFrames = 0;
 		await this.startCapture();
 	}
 
@@ -216,7 +234,10 @@ export class PageController {
 			this.cdp = null;
 		}
 		this.cdp = await this.page.context().newCDPSession(this.page);
-		const everyNthFrame = Math.max(1, Math.floor(60 / this.requestedFps));
+		const everyNthFrame = Math.max(
+			1,
+			Math.floor(60 / Math.max(1, this.contentAwareRequestedFps)),
+		);
 
 		this.cdp.on(
 			"Page.screencastFrame",
@@ -262,12 +283,22 @@ export class PageController {
 					this.heightMaps,
 				);
 				if (processed.type !== "SKIP") {
+					this.consecutiveSkipFrames = 0;
 					this.onFrame(processed);
+				} else {
+					this.consecutiveSkipFrames++;
 				}
 				const elapsedMs = Math.max(1, Date.now() - startedAt);
 				this.updateAdaptiveFps(elapsedMs);
-				this.nextAllowedFrameAtMs =
-					Date.now() + Math.floor(1000 / this.adaptiveFps);
+				const baseIntervalMs = Math.floor(1000 / Math.max(1, this.adaptiveFps));
+				const idlePenaltyMs =
+					this.consecutiveSkipFrames > 20
+						? Math.max(
+								baseIntervalMs,
+								this.isLikelyVideoUrl(this.currentUrl) ? 120 : 333,
+							)
+						: 0;
+				this.nextAllowedFrameAtMs = Date.now() + baseIntervalMs + idlePenaltyMs;
 
 				const next = this.pendingFrameData;
 				if (!next) {
@@ -293,22 +324,27 @@ export class PageController {
 			return;
 		}
 
-		const minFps = 5;
-		const currentBudgetMs = 1000 / Math.max(1, this.adaptiveFps);
-		let nextAdaptive = this.adaptiveFps;
+		const isVideo = this.isLikelyVideoUrl(this.currentUrl);
+		const minFps = isVideo ? 4 : 2;
+		let nextAdaptive = this.contentAwareRequestedFps;
 
-		if (
-			this.smoothedProcessMs > currentBudgetMs * 1.15 ||
-			this.droppedByThrottle >= 4
-		) {
-			nextAdaptive = Math.max(minFps, Math.floor(this.adaptiveFps * 0.85));
-		} else if (
-			this.smoothedProcessMs < currentBudgetMs * 0.7 &&
-			this.droppedByThrottle === 0 &&
-			this.adaptiveFps < this.requestedFps
-		) {
-			nextAdaptive = Math.min(this.requestedFps, this.adaptiveFps + 1);
+		if (this.smoothedProcessMs > 80) {
+			nextAdaptive = 4;
+		} else if (this.smoothedProcessMs > 50) {
+			nextAdaptive = 6;
 		}
+
+		if (this.droppedByThrottle >= 4) {
+			nextAdaptive = Math.min(
+				nextAdaptive,
+				Math.max(minFps, this.adaptiveFps - 1),
+			);
+		}
+
+		nextAdaptive = Math.max(
+			minFps,
+			Math.min(this.contentAwareRequestedFps, nextAdaptive),
+		);
 
 		if (nextAdaptive !== this.adaptiveFps) {
 			logger.debug(
@@ -320,5 +356,25 @@ export class PageController {
 		this.droppedByThrottle = 0;
 		this.processedSinceTune = 0;
 		this.lastTuneAtMs = now;
+	}
+
+	private applyContentFpsPolicy(url: string): void {
+		const isVideo = this.isLikelyVideoUrl(url);
+		this.contentAwareRequestedFps = isVideo
+			? Math.max(this.requestedFps, 10)
+			: Math.min(this.requestedFps, 3);
+		if (this.adaptiveFps > this.contentAwareRequestedFps) {
+			this.adaptiveFps = this.contentAwareRequestedFps;
+		}
+	}
+
+	private isLikelyVideoUrl(url: string): boolean {
+		const normalized = url.toLowerCase();
+		return (
+			normalized.includes("youtube.com") ||
+			normalized.includes("youtu.be") ||
+			normalized.includes("/watch?") ||
+			normalized.includes("/shorts/")
+		);
 	}
 }

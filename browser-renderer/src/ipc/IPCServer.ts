@@ -120,6 +120,20 @@ export class IPCServer {
 			);
 			return;
 		}
+		if (result.type === "DELTA_BATCH") {
+			for (const update of result.updates) {
+				this.sendFrameBinary(
+					screenId,
+					IPCServer.TYPE_DELTA,
+					update.data,
+					update.x,
+					update.y,
+					update.w,
+					update.h,
+				);
+			}
+			return;
+		}
 		if (result.type === "DELTA_FRAME") {
 			this.sendFrameBinary(
 				screenId,
