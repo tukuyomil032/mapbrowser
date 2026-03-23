@@ -78,6 +78,14 @@
 実行時の言語切替は `ui.language` で制御します。
 ロケールのフォールバック順は `ja-JP -> ja -> en` です。
 
+### キー命名規約
+
+- `command.<group>.<name>`: `/mb` コマンド出力文言
+- `input.<group>.<name>`: 入力/Anvil操作フロー文言
+- `common.<name>`: 複数メッセージで再利用する短い共通トークン
+- プレースホルダーは `{screen}`, `{fps}`, `{url}`, `{id}` の形式で統一
+- `messages_keys_en.yml` と `messages_keys_ja.yml` は同一キー集合を維持
+
 ## storage
 
 - yaml

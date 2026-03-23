@@ -80,6 +80,14 @@ Bundled message catalogs are loaded from `src/main/resources`:
 Runtime language selection is controlled by `ui.language`.
 Locale fallback order is `ja-JP -> ja -> en`.
 
+### key naming convention
+
+- `command.<group>.<name>`: `/mb` command output strings
+- `input.<group>.<name>`: input/anvil interaction strings
+- `common.<name>`: reusable short tokens used across messages
+- Placeholders must use brace style: `{screen}`, `{fps}`, `{url}`, `{id}`
+- Keep the same key set in `messages_keys_en.yml` and `messages_keys_ja.yml`
+
 ## storage
 
 - yaml
