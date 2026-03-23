@@ -521,7 +521,11 @@ public final class InputHandler implements Listener {
     }
 
     private void openUrlInput(final Player player, final Screen screen) {
-        final Inventory anvil = Bukkit.createInventory(player, InventoryType.ANVIL, Component.text("MapBrowser URL"));
+        final Inventory anvil = Bukkit.createInventory(
+            player,
+            InventoryType.ANVIL,
+            Component.text(t("MapBrowser URL", "MapBrowser URL入力"))
+        );
         final ItemStack paper = new ItemStack(Material.PAPER);
         final ItemMeta meta = paper.getItemMeta();
         final String current = screen.getCurrentUrl() == null ? "https://" : screen.getCurrentUrl();
@@ -535,7 +539,11 @@ public final class InputHandler implements Listener {
     }
 
     private void openTextInput(final Player player, final Screen screen) {
-        final Inventory anvil = Bukkit.createInventory(player, InventoryType.ANVIL, Component.text("MapBrowser Text Input"));
+        final Inventory anvil = Bukkit.createInventory(
+            player,
+            InventoryType.ANVIL,
+            Component.text(t("MapBrowser Text Input", "MapBrowser テキスト入力"))
+        );
         final ItemStack paper = new ItemStack(Material.PAPER);
         final ItemMeta meta = paper.getItemMeta();
         meta.displayName(Component.text(" "));

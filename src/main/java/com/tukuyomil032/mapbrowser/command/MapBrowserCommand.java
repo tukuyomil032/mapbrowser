@@ -1713,6 +1713,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return "";
         }
         final String language = resolveLanguage();
+        final String localizedByCatalog = plugin.getMessageLocalizer().translateRaw(language, source);
+        if (!Objects.equals(localizedByCatalog, source)) {
+            return localizedByCatalog;
+        }
         if (!"ja".equals(language)) {
             return source;
         }
