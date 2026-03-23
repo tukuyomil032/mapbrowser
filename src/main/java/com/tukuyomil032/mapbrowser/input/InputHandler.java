@@ -239,9 +239,9 @@ public final class InputHandler implements Listener {
         final String input = extractAnvilInput(event);
         if (input == null || input.isBlank()) {
             if (session.mode() == AnvilMode.URL) {
-                sendError(player, "URL is empty.", "URLが空です。");
+                sendErrorKey(player, "input.error.url-empty", "URL is empty.", "URLが空です。");
             } else {
-                sendError(player, "Text is empty.", "テキストが空です。");
+                sendErrorKey(player, "input.error.text-empty", "Text is empty.", "テキストが空です。");
             }
             player.closeInventory();
             return;
@@ -249,7 +249,7 @@ public final class InputHandler implements Listener {
 
         final Optional<Screen> target = plugin.getScreenManager().getScreen(session.screenId());
         if (target.isEmpty()) {
-            sendError(player, "Target screen not found.", "対象スクリーンが見つかりません。");
+            sendErrorKey(player, "input.error.target-screen-not-found", "Target screen not found.", "対象スクリーンが見つかりません。");
             player.closeInventory();
             return;
         }
@@ -268,16 +268,18 @@ public final class InputHandler implements Listener {
             }
             screen.setCurrentUrl(validated.valueOrReason());
             plugin.getBrowserIPCClient().sendNavigate(screen.getId(), validated.valueOrReason());
-            sendInfo(player,
-                    "Navigating: " + validated.valueOrReason(),
-                    "移動先: " + validated.valueOrReason());
+            sendInfo(
+                    player,
+                    tkp("input.info.navigating", "Navigating: {url}", "移動先: {url}", java.util.Map.of("url", validated.valueOrReason())),
+                    tkp("input.info.navigating", "Navigating: {url}", "移動先: {url}", java.util.Map.of("url", validated.valueOrReason()))
+            );
         } else {
             if (!ensureInteractable(player, screen)) {
                 player.closeInventory();
                 return;
             }
             plugin.getBrowserIPCClient().sendTextInput(screen.getId(), input);
-            sendInfo(player, "Typed text into browser.", "ブラウザにテキストを入力しました。");
+            sendInfoKey(player, "input.info.typed", "Typed text into browser.", "ブラウザにテキストを入力しました。");
         }
         player.closeInventory();
     }
@@ -445,7 +447,7 @@ public final class InputHandler implements Listener {
 
         final Optional<Screen> screen = resolveScreenFromFrame(event.getPlayer(), frame);
         if (screen.isEmpty()) {
-            sendError(event.getPlayer(), "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
+            sendErrorKey(event.getPlayer(), "input.error.no-selected", "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
             event.setCancelled(true);
             return;
         }
@@ -479,14 +481,14 @@ public final class InputHandler implements Listener {
 
         final Optional<Screen> screen = resolveScreenFromFrame(event.getPlayer(), frame);
         if (screen.isEmpty()) {
-            sendError(event.getPlayer(), "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
+            sendErrorKey(event.getPlayer(), "input.error.no-selected", "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
             event.setCancelled(true);
             return;
         }
 
         final Optional<RaycastUtil.Vector2i> coords = resolveClickPosition(frame, screen.get(), event.getClickedPosition());
         if (coords.isEmpty()) {
-            sendError(event.getPlayer(), "Could not resolve click position on frame.", "フレーム上のクリック位置を特定できませんでした。");
+            sendErrorKey(event.getPlayer(), "input.error.resolve-click", "Could not resolve click position on frame.", "フレーム上のクリック位置を特定できませんでした。");
             event.setCancelled(true);
             return;
         }
@@ -512,7 +514,7 @@ public final class InputHandler implements Listener {
 
         final Optional<Screen> screen = resolveScreenFromFrame(player, frame);
         if (screen.isEmpty()) {
-            sendError(player, "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
+            sendErrorKey(player, "input.error.no-selected", "No selected screen. Use /mb select <screen>.", "スクリーンが未選択です。/mb select <screen> を使用してください。");
             event.setCancelled(true);
             return;
         }
@@ -584,6 +586,26 @@ public final class InputHandler implements Listener {
 
     private void sendError(final Player player, final String en, final String ja) {
         player.sendMessage(Component.text("[ERR] ", NamedTextColor.RED).append(Component.text(t(en, ja), NamedTextColor.WHITE)));
+    }
+
+    private void sendInfoKey(final Player player, final String key, final String en, final String ja) {
+        sendInfo(player, tk(key, en, ja), tk(key, en, ja));
+    }
+
+    private void sendErrorKey(final Player player, final String key, final String en, final String ja) {
+        sendError(player, tk(key, en, ja), tk(key, en, ja));
+    }
+
+    private String tk(final String key, final String en, final String ja) {
+        final String language = resolveLanguage();
+        final String fallback = language.startsWith("ja") ? ja : en;
+        return plugin.getMessageLocalizer().translateKey(language, key, fallback);
+    }
+
+    private String tkp(final String key, final String en, final String ja, final java.util.Map<String, ?> placeholders) {
+        final String language = resolveLanguage();
+        final String fallback = language.startsWith("ja") ? ja : en;
+        return plugin.getMessageLocalizer().translateKey(language, key, fallback, placeholders);
     }
 
     private boolean ensureInteractable(final Player player, final Screen screen) {
