@@ -79,15 +79,16 @@ export class FrameProcessor {
 		}
 
 		const lumaData = this.buildLumaData(rgbBuffer, width, height);
+		const filteredLuma = this.applyBoxBlur3x3(lumaData, width, height);
 
 		if (
 			this.prevColorData === null ||
 			this.prevColorData.length !== colorData.length ||
 			this.prevLumaData === null ||
-			this.prevLumaData.length !== lumaData.length
+			this.prevLumaData.length !== filteredLuma.length
 		) {
 			this.prevColorData = colorData;
-			this.prevLumaData = lumaData;
+			this.prevLumaData = filteredLuma;
 			return {
 				type: "FRAME",
 				data: colorData,
@@ -111,7 +112,7 @@ export class FrameProcessor {
 					const rowOffset = y * width;
 					for (let x = tx; x < maxX; x++) {
 						const i = rowOffset + x;
-						const lumaDiff = Math.abs(lumaData[i] - prevLumaData[i]);
+						const lumaDiff = Math.abs(filteredLuma[i] - prevLumaData[i]);
 						if (lumaDiff < FrameProcessor.LUMA_THRESHOLD) {
 							continue;
 						}
@@ -148,7 +149,7 @@ export class FrameProcessor {
 			changedTileRatio >= FrameProcessor.MAX_CHANGED_TILE_RATIO
 		) {
 			this.prevColorData = colorData;
-			this.prevLumaData = lumaData;
+			this.prevLumaData = filteredLuma;
 			logger.debug(
 				`Fallback to full frame: changedTiles=${changedTiles.length}/${totalTileCount} changedPixels=${changedPixels}/${totalPixels}`,
 			);
@@ -197,7 +198,7 @@ export class FrameProcessor {
 		});
 
 		this.prevColorData = colorData;
-		this.prevLumaData = lumaData;
+		this.prevLumaData = filteredLuma;
 		logger.debug(
 			`Delta batch: tiles=${updates.length} changedPixels=${changedPixels}/${totalPixels}`,
 		);
@@ -231,6 +232,31 @@ export class FrameProcessor {
 			const g = rgbBuffer[p + 1] ?? 0;
 			const b = rgbBuffer[p + 2] ?? 0;
 			out[i] = (77 * r + 150 * g + 29 * b) >> 8;
+		}
+		return out;
+	}
+
+	private applyBoxBlur3x3(
+		luma: Uint8Array,
+		width: number,
+		height: number,
+	): Uint8Array {
+		if (width < 3 || height < 3) {
+			return luma;
+		}
+
+		const out = new Uint8Array(luma);
+		for (let y = 1; y < height - 1; y++) {
+			for (let x = 1; x < width - 1; x++) {
+				let sum = 0;
+				for (let dy = -1; dy <= 1; dy++) {
+					const rowOffset = (y + dy) * width;
+					for (let dx = -1; dx <= 1; dx++) {
+						sum += luma[rowOffset + x + dx] ?? 0;
+					}
+				}
+				out[y * width + x] = Math.floor(sum / 9);
+			}
 		}
 		return out;
 	}
