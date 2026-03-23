@@ -1,0 +1,21 @@
+messages:
+  exact:
+    "MAPBROWSER STATUS": "MAPBROWSER STATUS"
+    "DEPENDENCY CHECK": "DEPENDENCY CHECK"
+    "MAPBROWSER PERF": "MAPBROWSER PERF"
+    "MAPBROWSER PERFBENCH": "MAPBROWSER PERFBENCH"
+    "MAPBROWSER PERFBENCH RESULT": "MAPBROWSER PERFBENCH RESULT"
+  prefix:
+    "Screen not found for perf detail: ": "Screen not found for perf detail: "
+    "Duration must be integer seconds.": "Duration must be integer seconds."
+    "Duration must be 5..600 seconds.": "Duration must be 5..600 seconds."
+    "Invalid UUID format.": "Invalid UUID format."
+    "Screens: ": "Screens: "
+    "IPC connected: ": "IPC connected: "
+    "IPC health: ": "IPC health: "
+    "READY age: ": "READY age: "
+    "Name: ": "Name: "
+    "ID: ": "ID: "
+    "State: ": "State: "
+    "Size: ": "Size: "
+    "URL: ": "URL: "

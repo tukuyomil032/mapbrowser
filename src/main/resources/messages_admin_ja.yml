@@ -1,0 +1,21 @@
+messages:
+  exact:
+    "MAPBROWSER STATUS": "MapBrowser ステータス"
+    "DEPENDENCY CHECK": "依存関係チェック"
+    "MAPBROWSER PERF": "MapBrowser パフォーマンス"
+    "MAPBROWSER PERFBENCH": "MapBrowser 性能計測"
+    "MAPBROWSER PERFBENCH RESULT": "MapBrowser 性能計測結果"
+  prefix:
+    "Screen not found for perf detail: ": "パフォーマンス詳細対象のスクリーンが見つかりません: "
+    "Duration must be integer seconds.": "計測秒数は整数で指定してください。"
+    "Duration must be 5..600 seconds.": "計測秒数は5..600の範囲で指定してください。"
+    "Invalid UUID format.": "UUID形式が不正です。"
+    "Screens: ": "スクリーン数: "
+    "IPC connected: ": "IPC接続: "
+    "IPC health: ": "IPC状態: "
+    "READY age: ": "READY経過: "
+    "Name: ": "名前: "
+    "ID: ": "ID: "
+    "State: ": "状態: "
+    "Size: ": "サイズ: "
+    "URL: ": "URL: "
