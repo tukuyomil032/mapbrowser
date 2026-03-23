@@ -1115,7 +1115,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         try {
             material = Material.valueOf(materialName.toUpperCase(Locale.ROOT));
         } catch (final IllegalArgumentException ex) {
-            sendError(sender, "Config has invalid material for " + key + ": " + materialName);
+            sendError(sender, tkp(
+                    "command.error.invalid-material-config",
+                    "Config has invalid material for {key}: {material}",
+                    "設定に不正なマテリアルがあります {key}: {material}",
+                    Map.of("key", key, "material", materialName)
+            ));
             return true;
         }
 
@@ -1137,9 +1142,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         final HashMap<Integer, ItemStack> overflow = player.getInventory().addItem(item);
         if (!overflow.isEmpty()) {
             overflow.values().forEach(stack -> player.getWorld().dropItemNaturally(player.getLocation(), stack));
-            sendInfo(sender, "Inventory full. Dropped item on ground.");
+            sendInfo(sender, tk("command.info.inventory-full-drop", "Inventory full. Dropped item on ground.", "インベントリが満杯のため地面にドロップしました。"));
         }
-        sendOk(sender, "Given item: " + key + " (" + material.name() + ")");
+        sendOk(sender, tkp("command.ok.given-item", "Given item: {key} ({material})", "アイテムを付与しました: {key} ({material})", Map.of("key", key, "material", material.name())));
         return true;
     }
 
@@ -1249,30 +1254,30 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         if ("status".equalsIgnoreCase(args[1])) {
-            sendHeader(sender, "MAPBROWSER STATUS");
-            sendInfo(sender, "IPC connected: " + plugin.getBrowserIPCClient().isConnected());
-            sendInfo(sender, "IPC health: " + plugin.getBrowserIPCClient().healthSummary());
+            sendHeader(sender, tk("command.admin.status.header", "MAPBROWSER STATUS", "MAPBROWSER ステータス"));
+            sendInfo(sender, tkp("command.admin.status.ipc-connected", "IPC connected: {value}", "IPC 接続: {value}", Map.of("value", plugin.getBrowserIPCClient().isConnected())));
+            sendInfo(sender, tkp("command.admin.status.ipc-health", "IPC health: {value}", "IPC ヘルス: {value}", Map.of("value", plugin.getBrowserIPCClient().healthSummary())));
             final long readyAge = plugin.getBrowserIPCClient().secondsSinceReady();
-            sendInfo(sender, "READY age: " + (readyAge >= 0 ? readyAge + "s" : "never"));
-            sendInfo(sender, "Screens: " + plugin.getScreenManager().getAllScreens().size());
+            sendInfo(sender, tkp("command.admin.status.ready-age", "READY age: {value}", "READY経過: {value}", Map.of("value", readyAge >= 0 ? readyAge + "s" : "never")));
+            sendInfo(sender, tkp("command.admin.status.screens", "Screens: {count}", "スクリーン数: {count}", Map.of("count", plugin.getScreenManager().getAllScreens().size())));
             sendLine(sender);
             return true;
         }
 
         if ("deps".equalsIgnoreCase(args[1])) {
-            sendHeader(sender, "DEPENDENCY CHECK");
-            sendInfo(sender, "PacketEvents (softdepend): " + pluginState("PacketEvents"));
-            sendInfo(sender, "AnvilGUI (softdepend): " + pluginState("AnvilGUI"));
-            sendInfo(sender, "spark (optional): " + pluginState("spark"));
+            sendHeader(sender, tk("command.admin.deps.header", "DEPENDENCY CHECK", "依存関係チェック"));
+            sendInfo(sender, tkp("command.admin.deps.packetevents", "PacketEvents (softdepend): {state}", "PacketEvents (softdepend): {state}", Map.of("state", pluginState("PacketEvents"))));
+            sendInfo(sender, tkp("command.admin.deps.anvilgui", "AnvilGUI (softdepend): {state}", "AnvilGUI (softdepend): {state}", Map.of("state", pluginState("AnvilGUI"))));
+            sendInfo(sender, tkp("command.admin.deps.spark", "spark (optional): {state}", "spark (optional): {state}", Map.of("state", pluginState("spark"))));
             sendLine(sender);
             return true;
         }
 
         if ("reload".equalsIgnoreCase(args[1])) {
             plugin.reloadConfig();
-            sendOk(sender, "Config reloaded.");
-            sendInfo(sender, "storage=" + plugin.getConfig().getString("storage", "yaml"));
-            sendInfo(sender, "render-distance=" + plugin.getConfig().getInt("screen.render-distance", 64));
+            sendOk(sender, tk("command.admin.reload.ok", "Config reloaded.", "設定を再読み込みしました。"));
+            sendInfo(sender, tkp("command.admin.reload.storage", "storage={value}", "storage={value}", Map.of("value", plugin.getConfig().getString("storage", "yaml"))));
+            sendInfo(sender, tkp("command.admin.reload.render-distance", "render-distance={value}", "render-distance={value}", Map.of("value", plugin.getConfig().getInt("screen.render-distance", 64))));
             return true;
         }
 
@@ -1286,12 +1291,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             final long usedMb = (runtime.totalMemory() - runtime.freeMemory()) / (1024L * 1024L);
             final long maxMb = runtime.maxMemory() / (1024L * 1024L);
 
-            sendHeader(sender, "MAPBROWSER PERF");
-            sendInfo(sender, "uptime=" + uptime + "s inbound=" + totalInbound + " msg(" + perSecond + "/s)");
-            sendInfo(sender, "frames(full=" + ipcStats.inboundFrame() + ", delta=" + ipcStats.inboundDelta() + ") errors=" + ipcStats.inboundErrorEvent());
-            sendInfo(sender, "tps=" + readCurrentTpsText());
-            sendInfo(sender, "memory=" + usedMb + "MB/" + maxMb + "MB screens=" + plugin.getScreenManager().getAllScreens().size());
-            sendInfo(sender, "audio=" + plugin.getAudioBridge().diagnostics());
+            sendHeader(sender, tk("command.admin.perf.header", "MAPBROWSER PERF", "MAPBROWSER パフォーマンス"));
+            sendInfo(sender, tkp("command.admin.perf.uptime", "uptime={uptime}s inbound={inbound} msg({rate}/s)", "uptime={uptime}s inbound={inbound} msg({rate}/s)", Map.of("uptime", uptime, "inbound", totalInbound, "rate", perSecond)));
+            sendInfo(sender, tkp("command.admin.perf.frames", "frames(full={full}, delta={delta}) errors={errors}", "frames(full={full}, delta={delta}) errors={errors}", Map.of("full", ipcStats.inboundFrame(), "delta", ipcStats.inboundDelta(), "errors", ipcStats.inboundErrorEvent())));
+            sendInfo(sender, tkp("command.admin.perf.tps", "tps={value}", "tps={value}", Map.of("value", readCurrentTpsText())));
+            sendInfo(sender, tkp("command.admin.perf.memory", "memory={used}MB/{max}MB screens={screens}", "memory={used}MB/{max}MB screens={screens}", Map.of("used", usedMb, "max", maxMb, "screens", plugin.getScreenManager().getAllScreens().size())));
+            sendInfo(sender, tkp("command.admin.perf.audio", "audio={value}", "audio={value}", Map.of("value", plugin.getAudioBridge().diagnostics())));
 
             if (args.length >= 3 && sender instanceof Player player) {
                 final Optional<Screen> target = resolveScreen(args[2], player);
@@ -1307,15 +1312,15 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 }
                 final Screen screen = target.get();
                 final var detail = screenStats.get(screen.getId());
-                sendInfo(sender, "screen=" + screen.getName() + " id=" + screen.getId());
-                sendInfo(sender, "state=" + screen.getState() + " size=" + screen.getWidth() + "x" + screen.getHeight() + " fps=" + screen.getFps());
+                sendInfo(sender, tkp("command.admin.perf.screen", "screen={screen} id={id}", "screen={screen} id={id}", Map.of("screen", screen.getName(), "id", screen.getId())));
+                sendInfo(sender, tkp("command.admin.perf.screen-state", "state={state} size={width}x{height} fps={fps}", "state={state} size={width}x{height} fps={fps}", Map.of("state", screen.getState(), "width", screen.getWidth(), "height", screen.getHeight(), "fps", screen.getFps())));
                 if (detail == null) {
-                    sendInfo(sender, "ipc(per-screen)=no data yet");
+                    sendInfo(sender, tk("command.admin.perf.screen-ipc-empty", "ipc(per-screen)=no data yet", "ipc(per-screen)=まだデータなし"));
                 } else {
                     final long since = detail.lastInboundAtEpochMillis() <= 0L
                             ? -1L
                             : Math.max(0L, (System.currentTimeMillis() - detail.lastInboundAtEpochMillis()) / 1000L);
-                    sendInfo(sender, "ipc(per-screen) full=" + detail.frameCount() + " delta=" + detail.deltaCount() + " err=" + detail.errorCount() + " last=" + (since >= 0 ? since + "s" : "never"));
+                    sendInfo(sender, tkp("command.admin.perf.screen-ipc", "ipc(per-screen) full={full} delta={delta} err={errors} last={last}", "ipc(per-screen) full={full} delta={delta} err={errors} last={last}", Map.of("full", detail.frameCount(), "delta", detail.deltaCount(), "errors", detail.errorCount(), "last", since >= 0 ? since + "s" : "never")));
                 }
                 sendLine(sender);
                 return true;
@@ -1333,7 +1338,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 final long full = detail == null ? 0L : detail.frameCount();
                 final long delta = detail == null ? 0L : detail.deltaCount();
                 final long errors = detail == null ? 0L : detail.errorCount();
-                sendInfo(sender, "screen=" + screen.getName() + " frames=" + (full + delta) + " (f=" + full + " d=" + delta + ") err=" + errors);
+                sendInfo(sender, tkp("command.admin.perf.top-screen", "screen={screen} frames={frames} (f={full} d={delta}) err={errors}", "screen={screen} frames={frames} (f={full} d={delta}) err={errors}", Map.of("screen", screen.getName(), "frames", (full + delta), "full", full, "delta", delta, "errors", errors)));
             }
             sendLine(sender);
             return true;
@@ -1349,14 +1354,14 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 try {
                     durationSec = Integer.parseInt(args[2]);
                 } catch (final NumberFormatException ex) {
-                    sendError(sender, "Duration must be integer seconds.");
+                    sendError(sender, tk("command.error.perfbench-duration-integer", "Duration must be integer seconds.", "計測時間は整数秒で指定してください。"));
                     return true;
                 }
             } else {
                 durationSec = 30;
             }
             if (durationSec < 5 || durationSec > 600) {
-                sendError(sender, "Duration must be 5..600 seconds.");
+                sendError(sender, tk("command.error.perfbench-duration-range", "Duration must be 5..600 seconds.", "計測時間は 5..600 秒の範囲で指定してください。"));
                 return true;
             }
             startPerfBench(player, durationSec);
@@ -1371,10 +1376,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             try {
                 final UUID screenId = UUID.fromString(args[2]);
                 plugin.getBrowserIPCClient().sendClose(screenId);
-                sendOk(sender, "Sent CLOSE for " + screenId);
+                sendOk(sender, tkp("command.ok.admin-stop-sent", "Sent CLOSE for {id}", "CLOSEを送信しました: {id}", Map.of("id", screenId)));
                 return true;
             } catch (final IllegalArgumentException ex) {
-                sendError(sender, "Invalid UUID format.");
+                sendError(sender, tk("command.error.invalid-uuid", "Invalid UUID format.", "UUID形式が不正です。"));
                 return true;
             }
         }
@@ -1392,7 +1397,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         plugin.getScreenManager().clearSelected(player.getUniqueId());
-        sendOk(sender, "Exited browser operation mode.");
+        sendOk(sender, tk("command.ok.exited", "Exited browser operation mode.", "ブラウザ操作モードを終了しました。"));
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_BASS, 0.8f, 0.7f);
         return true;
     }
