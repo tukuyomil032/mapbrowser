@@ -38,7 +38,7 @@ Base command:
 ## Config
 
 - /mb config simulate_particle <end_rod|flame>
-- /mb config language <en|ja>
+- /mb config language <en|ja|ja-JP>
 
 ## Admin
 
@@ -58,5 +58,7 @@ Base command:
 - Browser interaction commands (`open`, `type`, `back`, `forward`, `reload`, `fps`) require loaded/active screen. Use `/mb load` after `/mb unload`.
 - Tile selector supports `all`, `odd`, `even`, coordinate `x-y`, rectangle `x1-y1:x2-y2`, and linear range `n..m`.
 - Examples: `all`, `odd`, `1-2`, `1-1:3-2`, `1`, `1..3`, `1,4,6..8`.
+- Help/error/ok outputs are key-based from message catalogs (`messages_keys_en.yml`, `messages_keys_ja.yml`) with placeholders.
+- `give-frame` usage examples in command output: `Example: /mb gif test 1-2`, `Format: all, odd, even, x-y, x1-y1:x2-y2, n, n..m, n,m,p..q`.
 - URL input is validated by security rules.
 - FPS must be in configured allowed range.

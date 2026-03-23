@@ -3,9 +3,9 @@ package com.tukuyomil032.mapbrowser.util;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Level;
 
@@ -54,8 +54,8 @@ public final class MessageLocalizer {
         }
 
         for (final String candidate : localeCandidates(language)) {
-            final Map<String, String> exact = "ja".equals(candidate) ? jaExact : enExact;
-            final Map<String, String> prefix = "ja".equals(candidate) ? jaPrefix : enPrefix;
+            final Map<String, String> exact = exactCatalog(candidate);
+            final Map<String, String> prefix = prefixCatalog(candidate);
 
             final String exactMatch = exact.get(source);
             if (exactMatch != null) {
@@ -95,7 +95,7 @@ public final class MessageLocalizer {
 
         String resolved = null;
         for (final String candidate : localeCandidates(language)) {
-            final Map<String, String> keys = "ja".equals(candidate) ? jaKeys : enKeys;
+            final Map<String, String> keys = keyCatalog(candidate);
             final String value = keys.get(key);
             if (value != null) {
                 resolved = value;
@@ -124,31 +124,25 @@ public final class MessageLocalizer {
     }
 
     private List<String> localeCandidates(final String language) {
-        final ArrayList<String> candidates = new ArrayList<>(3);
-        if (language != null && !language.isBlank()) {
-            final String normalized = language.toLowerCase().replace('_', '-');
-            addLocaleCandidate(candidates, normalized);
-
-            final int dash = normalized.indexOf('-');
-            if (dash > 0) {
-                addLocaleCandidate(candidates, normalized.substring(0, dash));
-            }
+        final String normalized = language == null
+                ? ""
+                : language.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+        if (normalized.startsWith("ja")) {
+            return List.of("ja", "en");
         }
-
-        addLocaleCandidate(candidates, "en");
-        return candidates;
+        return List.of("en");
     }
 
-    private void addLocaleCandidate(final List<String> candidates, final String locale) {
-        if (locale == null || locale.isBlank()) {
-            return;
-        }
-        if (!"ja".equals(locale) && !"en".equals(locale)) {
-            return;
-        }
-        if (!candidates.contains(locale)) {
-            candidates.add(locale);
-        }
+    private Map<String, String> exactCatalog(final String locale) {
+        return "ja".equals(locale) ? jaExact : enExact;
+    }
+
+    private Map<String, String> prefixCatalog(final String locale) {
+        return "ja".equals(locale) ? jaPrefix : enPrefix;
+    }
+
+    private Map<String, String> keyCatalog(final String locale) {
+        return "ja".equals(locale) ? jaKeys : enKeys;
     }
 
     private void load(

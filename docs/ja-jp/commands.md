@@ -38,7 +38,7 @@
 ## 設定
 
 - /mb config simulate_particle <end_rod|flame>
-- /mb config language <en|ja>
+- /mb config language <en|ja|ja-JP>
 
 ## 管理系
 
@@ -58,4 +58,6 @@
 - ブラウザ操作コマンド（`open`, `type`, `back`, `forward`, `reload`, `fps`）はロード済みスクリーンのみ対象です。`/mb unload` 後は `/mb load` が必要です。
 - タイル指定は `all` / `odd` / `even`、座標 `x-y`、矩形 `x1-y1:x2-y2`、連番範囲 `n..m` に対応します。
 - 例: `all`, `odd`, `1-2`, `1-1:3-2`, `1`, `1..3`, `1,4,6..8`。
+- ヘルプ/エラー/成功メッセージはメッセージカタログ（`messages_keys_en.yml`, `messages_keys_ja.yml`）のキー方式で管理され、プレースホルダー展開に対応しています。
+- `give-frame` のコマンド出力例: `Example: /mb gif test 1-2`, `Format: all, odd, even, x-y, x1-y1:x2-y2, n, n..m, n,m,p..q`。
 - URL はセキュリティ設定で検証されます。
