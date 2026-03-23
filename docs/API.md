@@ -44,17 +44,18 @@ Current methods are defined in [src/main/java/com/tukuyomil032/mapbrowser/servic
 |---|---|---|---|
 | getAllScreens | - | Collection<Screen> | Returns current runtime screen list |
 | getScreen | UUID | Optional<Screen> | Returns screen if found |
-| openUrl | UUID, String | void | Updates URL and emits NAVIGATE IPC |
-| reload | UUID | boolean | Emits RELOAD IPC if screen exists |
-| setFps | UUID, int | boolean | Updates runtime FPS and emits SET_FPS IPC |
+| openUrl | UUID, String | void | Updates URL and emits NAVIGATE IPC when target screen is loaded |
+| reload | UUID | boolean | Emits RELOAD IPC when target screen is loaded |
+| setFps | UUID, int | boolean | Updates runtime FPS and emits SET_FPS IPC when target screen is loaded |
 | close | UUID | boolean | Emits CLOSE IPC if screen exists |
-| goBack | UUID | boolean | Emits GO_BACK IPC if screen exists |
-| goForward | UUID | boolean | Emits GO_FORWARD IPC if screen exists |
+| goBack | UUID | boolean | Emits GO_BACK IPC when target screen is loaded |
+| goForward | UUID | boolean | Emits GO_FORWARD IPC when target screen is loaded |
 | status | - | ServiceStatus | Returns IPC/screen summary |
 
 ## Notes
 
 - `openUrl(...)` sends a navigate request to browser-renderer and updates in-memory URL state.
+- Browser control methods (`openUrl`, `reload`, `setFps`, `goBack`, `goForward`) return/apply only for loaded screens.
 - URL validation should be handled by caller or routed through command/security flow when needed.
 - `status()` currently exposes `ipcConnected` and `screenCount`.
 - API is intentionally minimal and may evolve before stable release.

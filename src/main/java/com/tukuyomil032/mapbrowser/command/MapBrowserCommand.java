@@ -181,7 +181,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return List.of("end_rod", "flame");
         }
         if (args.length == 3 && "config".equals(sub) && "language".equalsIgnoreCase(args[1])) {
-            return List.of("en", "ja");
+            return List.of("en", "ja", "ja-JP");
         }
         if (args.length == 2 && "select".equals(sub)) {
             final List<String> names = plugin.getScreenManager().getAllScreens().stream()
@@ -361,7 +361,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 return true;
             }
             plugin.getScreenManager().setSelected(player.getUniqueId(), latest.get().getId());
-            sendOk(sender, "Selected latest screen: " + latest.get().getName() + " (" + latest.get().getId() + ")");
+            sendOk(sender, tkp(
+                    "command.ok.selected-latest",
+                    "Selected latest screen: {screen} ({id})",
+                    "最新スクリーンを選択: {screen} ({id})",
+                    Map.of("screen", latest.get().getName(), "id", latest.get().getId())
+            ));
             player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.5f);
             return true;
         }
@@ -380,12 +385,22 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
                 .findFirst();
 
         if (selected.isEmpty()) {
-            sendError(sender, "Screen not found: " + query);
+            sendError(sender, tkp(
+                "command.error.screen-not-found-name",
+                "Screen not found: {screen}",
+                "スクリーンが見つかりません: {screen}",
+                Map.of("screen", query)
+            ));
             return true;
         }
 
         plugin.getScreenManager().setSelected(player.getUniqueId(), selected.get().getId());
-        sendOk(sender, "Selected screen: " + selected.get().getName() + " (" + selected.get().getId() + ")");
+        sendOk(sender, tkp(
+            "command.ok.selected",
+            "Selected screen: {screen} ({id})",
+            "選択したスクリーン: {screen} ({id})",
+            Map.of("screen", selected.get().getName(), "id", selected.get().getId())
+        ));
         player.playSound(player.getLocation(), Sound.BLOCK_NOTE_BLOCK_PLING, 0.8f, 1.5f);
         return true;
     }
@@ -427,7 +442,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
         screen.setCurrentUrl(result.valueOrReason());
         plugin.getBrowserIPCClient().sendNavigate(screen.getId(), result.valueOrReason());
-        sendOk(sender, "Navigating: " + result.valueOrReason());
+        sendOk(sender, tkp(
+            "command.ok.navigating",
+            "Navigating: {url}",
+            "移動先: {url}",
+            Map.of("url", result.valueOrReason())
+        ));
         return true;
     }
 
@@ -544,7 +564,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
         plugin.getBrowserIPCClient().sendSetFps(screen.getId(), fps);
-        sendOk(sender, "FPS updated: " + fps);
+        sendOk(sender, tkp(
+            "command.ok.fps-updated",
+            "FPS updated: {fps}",
+            "FPSを更新: {fps}",
+            Map.of("fps", fps)
+        ));
         return true;
     }
 
@@ -564,7 +589,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Screen screen = target.get();
         if (plugin.getScreenManager().loadScreen(screen.getId())) {
-            sendOk(sender, "Screen loaded: " + screen.getName());
+            sendOk(sender, tkp(
+                    "command.ok.screen-loaded",
+                    "Screen loaded: {screen}",
+                    "スクリーンをロード: {screen}",
+                    Map.of("screen", screen.getName())
+            ));
             return true;
         }
 
@@ -588,7 +618,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
 
         final Screen screen = target.get();
         if (plugin.getScreenManager().unloadScreen(screen.getId())) {
-            sendOk(sender, "Screen unloaded: " + screen.getName());
+            sendOk(sender, tkp(
+                    "command.ok.screen-unloaded",
+                    "Screen unloaded: {screen}",
+                    "スクリーンをアンロード: {screen}",
+                    Map.of("screen", screen.getName())
+            ));
             return true;
         }
 
@@ -610,8 +645,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
         for (final Screen screen : screens.stream().sorted(Comparator.comparing(Screen::getCreatedAt)).toList()) {
             final boolean selected = selectedId != null && selectedId.equals(screen.getId());
-            final String selectedLabel = "ja".equals(resolveLanguage()) ? "選択中" : "SELECTED";
-            final String stateLabel = "ja".equals(resolveLanguage()) ? "状態" : "STATE";
+            final String selectedLabel = resolveLanguage().startsWith("ja") ? "選択中" : "SELECTED";
+            final String stateLabel = resolveLanguage().startsWith("ja") ? "状態" : "STATE";
             sender.sendMessage(Component.text()
                 .append(Component.text(selected ? "◆ " : "◇ ", selected ? TextColor.color(0x22C55E) : NamedTextColor.DARK_GRAY))
                 .append(Component.text(screen.getName(), TextColor.color(0x67E8F9)).decoration(TextDecoration.BOLD, true))
@@ -942,9 +977,9 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         }
 
         if ("language".equalsIgnoreCase(args[1])) {
-            final String language = args[2].toLowerCase(Locale.ROOT);
-            if (!"en".equals(language) && !"ja".equals(language)) {
-                sendError(sender, "Value must be en or ja.");
+            final String language = args[2].toLowerCase(Locale.ROOT).replace('_', '-');
+            if (!"en".equals(language) && !"ja".equals(language) && !"ja-jp".equals(language)) {
+                sendError(sender, "Value must be en, ja or ja-JP.");
                 return true;
             }
             plugin.getConfig().set("ui.language", language);
@@ -1102,12 +1137,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if (configured == null) {
             return "en";
         }
-        final String normalized = configured.toLowerCase(Locale.ROOT);
-        return "ja".equals(normalized) ? "ja" : "en";
+        final String normalized = configured.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+        return normalized.isBlank() ? "en" : normalized;
     }
 
     private String localizedToolName(final String language, final String key) {
-        if ("ja".equals(language)) {
+        if (language.startsWith("ja")) {
             return switch (key) {
                 case "pointer-left", "pointer" -> "ブラウザ左クリック";
                 case "pointer-right" -> "ブラウザ右クリック";
@@ -1138,7 +1173,7 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
     }
 
     private String localizedToolDescription(final String language, final String key) {
-        if ("ja".equals(language)) {
+        if (language.startsWith("ja")) {
             return switch (key) {
                 case "pointer-left", "pointer" -> "選択中スクリーンのクリック位置へ左クリックを送信";
                 case "pointer-right" -> "選択中スクリーンのクリック位置へ右クリックを送信";
@@ -1233,7 +1268,12 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             if (args.length >= 3 && sender instanceof Player player) {
                 final Optional<Screen> target = resolveScreen(args[2], player);
                 if (target.isEmpty()) {
-                    sendError(sender, "Screen not found for perf detail: " + args[2]);
+                    sendError(sender, tkp(
+                            "command.error.screen-not-found-perf",
+                            "Screen not found for perf detail: {screen}",
+                            "パフォーマンス詳細対象のスクリーンが見つかりません: {screen}",
+                            Map.of("screen", args[2])
+                    ));
                     sendLine(sender);
                     return true;
                 }
@@ -1725,107 +1765,18 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if (source == null) {
             return "";
         }
-        final String language = resolveLanguage();
-        final String localizedByCatalog = plugin.getMessageLocalizer().translateRaw(language, source);
-        if (!Objects.equals(localizedByCatalog, source)) {
-            return localizedByCatalog;
-        }
-        if (!"ja".equals(language)) {
-            return source;
-        }
-
-        String result = source;
-        result = result.replace("MAPBROWSER COMMANDS", "MapBrowser コマンド一覧");
-        result = result.replace("SCREEN CREATED", "スクリーン作成完了");
-        result = result.replace("SCREEN LIST", "スクリーン一覧");
-        result = result.replace("SELECTED SCREEN", "選択中スクリーン");
-        result = result.replace("MAPBROWSER STATUS", "MapBrowser ステータス");
-        result = result.replace("DEPENDENCY CHECK", "依存関係チェック");
-        result = result.replace("MAPBROWSER PERF", "MapBrowser パフォーマンス");
-        result = result.replace("MAPBROWSER PERFBENCH", "MapBrowser 性能計測");
-        result = result.replace("MAPBROWSER PERFBENCH RESULT", "MapBrowser 性能計測結果");
-
-        result = result.replace("Player only command.", "このコマンドはプレイヤー専用です。");
-        result = result.replace("No permission.", "権限がありません。");
-        result = result.replace("No selected screen.", "スクリーンが選択されていません。");
-        result = result.replace("No selected screen. Create/select one first.", "スクリーンが選択されていません。先に作成または選択してください。");
-        result = result.replace("Screen is unloaded. Use /mb load first.", "スクリーンはアンロード状態です。先に /mb load を実行してください。");
-        result = result.replace("Screen not found.", "スクリーンが見つかりません。");
-        result = result.replace("Screen not found: ", "スクリーンが見つかりません: ");
-        result = result.replace("Screen not found for perf detail: ", "パフォーマンス詳細対象のスクリーンが見つかりません: ");
-        result = result.replace("No screens available.", "利用可能なスクリーンがありません。");
-        result = result.replace("Unknown subcommand. Use /mb", "不明なサブコマンドです。/mb を使用してください。");
-        result = result.replace("Config reloaded.", "設定を再読み込みしました。");
-        result = result.replace("Unknown item type.", "不明なアイテム種別です。");
-        result = result.replace("Unknown admin command.", "不明なadminコマンドです。");
-        result = result.replace("Unsupported command.", "未対応のコマンドです。");
-        result = result.replace("Text is empty.", "テキストが空です。");
-        result = result.replace("Usage: ", "使用法: ");
-        result = result.replace("Example: ", "例: ");
-        result = result.replace("Format: ", "形式: ");
-        result = result.replace("Value must be en or ja.", "値は en または ja を指定してください。");
-        result = result.replace("Value must be end_rod or flame.", "値は end_rod または flame を指定してください。");
-        result = result.replace("Unknown config key: ", "不明な設定キー: ");
-        result = result.replace("Duration must be integer seconds.", "計測秒数は整数で指定してください。");
-        result = result.replace("Duration must be 5..600 seconds.", "計測秒数は5..600の範囲で指定してください。");
-        result = result.replace("Invalid UUID format.", "UUID形式が不正です。");
-        result = result.replace("Invalid URL format.", "URLの形式が不正です。");
-        result = result.replace("Only http/https URL is allowed.", "http/https のURLのみ許可されています。");
-        result = result.replace("HTTP is disabled by server config.", "サーバー設定でHTTPが無効化されています。");
-        result = result.replace("URL host is missing.", "URLのホストが不足しています。");
-        result = result.replace("Access to local/private network is blocked.", "ローカル/プライベートネットワークへのアクセスは禁止されています。");
-        result = result.replace("Host is blocked by blacklist.", "このホストはブラックリストで禁止されています。");
-        result = result.replace("Host is not included in whitelist.", "このホストはホワイトリストに含まれていません。");
-        result = result.replace("Load failed.", "ロードに失敗しました。");
-        result = result.replace("Unload failed.", "アンロードに失敗しました。");
-        result = result.replace("Destroy failed.", "削除に失敗しました。");
-        result = result.replace("Screen destroyed.", "スクリーンを削除しました。");
-        result = result.replace("Resize failed.", "リサイズに失敗しました。");
-        result = result.replace("Typed text into browser.", "ブラウザにテキストを入力しました。");
-        result = result.replace("Screen has no map tiles.", "このスクリーンにはマップタイルがありません。");
-        result = result.replace("Inventory full. Dropped item on ground.", "インベントリが満杯のため、地面にドロップしました。");
-        result = result.replace("Frame tiles supplied: ", "フレームタイルを配布: ");
-        result = result.replace("Map total: ", "マップ合計: ");
-        result = result.replace("Tile range: ", "タイル範囲: ");
-        result = result.replace("Coordinate bounds: ", "座標範囲: ");
-        result = result.replace("Use all/odd/even, x-y coordinates, or 1-based linear indexes.", "all/odd/even、x-y座標、または1始まりの線形インデックスを使用できます。");
-        result = result.replace("Invalid tile range: ", "無効なタイル範囲: ");
-        result = result.replace("Exited browser operation mode.", "ブラウザ操作モードを終了しました。");
-        result = result.replace("Navigating: ", "移動先: ");
-        result = result.replace("Given item: ", "アイテムを付与: ");
-        result = result.replace("Sent command: ", "コマンド送信: ");
-        result = result.replace("Sent CLOSE for ", "CLOSEを送信: ");
-        result = result.replace("Selected screen: ", "選択したスクリーン: ");
-        result = result.replace("Selected latest screen: ", "最新スクリーンを選択: ");
-        result = result.replace("Screen loaded: ", "スクリーンをロード: ");
-        result = result.replace("Screen unloaded: ", "スクリーンをアンロード: ");
-        result = result.replace("FPS updated: ", "FPSを更新: ");
-        result = result.replace("language updated: ", "言語を更新: ");
-        result = result.replace("Screen resized to ", "スクリーンをリサイズ: ");
-        result = result.replace("Screen size must be ", "スクリーンサイズは ");
-        result = result.replace("Screen limit reached in this world (max=", "このワールドのスクリーン上限に達しています (max=");
-        result = result.replace("Width/height must be integer.", "幅/高さは整数で入力してください。");
-        result = result.replace("FPS must be integer.", "FPSは整数で入力してください。");
-        result = result.replace("FPS must be ", "FPSは ");
-        result = result.replace("Screen name already exists: ", "同名のスクリーンが既に存在します: ");
-        result = result.replace("Screens: ", "スクリーン数: ");
-        result = result.replace("IPC connected: ", "IPC接続: ");
-        result = result.replace("IPC health: ", "IPC状態: ");
-        result = result.replace("READY age: ", "READY経過: ");
-        result = result.replace("never", "未受信");
-        result = result.replace("Name: ", "名前: ");
-        result = result.replace("ID: ", "ID: ");
-        result = result.replace("State: ", "状態: ");
-        result = result.replace("Size: ", "サイズ: ");
-        result = result.replace("URL: ", "URL: ");
-        result = result.replace("simulate_particle updated: ", "simulate_particle を更新: ");
-
-        return result;
+        return plugin.getMessageLocalizer().translateRaw(resolveLanguage(), source);
     }
 
     private String tk(final String key, final String en, final String ja) {
         final String language = resolveLanguage();
-        final String fallback = "ja".equals(language) ? ja : en;
+        final String fallback = language.startsWith("ja") ? ja : en;
         return plugin.getMessageLocalizer().translateKey(language, key, fallback);
+    }
+
+    private String tkp(final String key, final String en, final String ja, final Map<String, ?> placeholders) {
+        final String language = resolveLanguage();
+        final String fallback = language.startsWith("ja") ? ja : en;
+        return plugin.getMessageLocalizer().translateKey(language, key, fallback, placeholders);
     }
 }

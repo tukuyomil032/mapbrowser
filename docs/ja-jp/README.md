@@ -11,6 +11,7 @@
 - [アーキテクチャ](architecture.md)
 - [運用ガイド](operations.md)
 - [トラブルシュート](troubleshooting.md)
+- [改善案・新機能アイデア集](roadmap-ideas.md)
 - [Companion Mod 要件定義（開発者向け）](../companion_mods/REQUIREMENTS.md)
 
 ## 対象読者

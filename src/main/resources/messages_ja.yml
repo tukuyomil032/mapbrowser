@@ -13,6 +13,7 @@ messages:
     "Config reloaded.": "設定を再読み込みしました。"
     "Unknown item type.": "不明なアイテム種別です。"
     "Unknown admin command.": "不明なadminコマンドです。"
+    "Value must be en, ja or ja-JP.": "値は en、ja、または ja-JP を指定してください。"
     "Invalid URL format.": "URLの形式が不正です。"
     "Only http/https URL is allowed.": "http/https のURLのみ許可されています。"
     "HTTP is disabled by server config.": "サーバー設定でHTTPが無効化されています。"

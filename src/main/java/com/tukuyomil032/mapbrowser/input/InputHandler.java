@@ -569,12 +569,12 @@ public final class InputHandler implements Listener {
         if (configured == null) {
             return "en";
         }
-        final String normalized = configured.toLowerCase(Locale.ROOT);
-        return "ja".equals(normalized) ? "ja" : "en";
+        final String normalized = configured.trim().toLowerCase(Locale.ROOT).replace('_', '-');
+        return normalized.isBlank() ? "en" : normalized;
     }
 
     private String t(final String en, final String ja) {
-        final String source = "ja".equals(resolveLanguage()) ? ja : en;
+        final String source = resolveLanguage().startsWith("ja") ? ja : en;
         return plugin.getMessageLocalizer().translateRaw(resolveLanguage(), source);
     }
 

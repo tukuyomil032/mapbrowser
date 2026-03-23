@@ -394,13 +394,48 @@ public final class FrameRenderer {
         final double dz = player.getLocation().getZ() - screen.getOriginZ();
         final double distance = Math.sqrt((dx * dx) + (dy * dy) + (dz * dz));
 
+        long distanceInterval = 0L;
         if (distance > 32.0D) {
-            return 250L;
+            distanceInterval = 250L;
+        } else if (distance > 20.0D) {
+            distanceInterval = 120L;
         }
-        if (distance > 20.0D) {
-            return 120L;
+
+        // Always respect configured screen fps as a baseline cap.
+        final int screenFps = Math.max(1, screen.getFps());
+        final long fpsInterval = Math.max(1L, 1000L / (long) screenFps);
+        long interval = Math.max(distanceInterval, fpsInterval);
+
+        final boolean tpsDegradeEnabled = plugin.getConfig().getBoolean("screen.tps-degrade-enabled", true);
+        if (!tpsDegradeEnabled) {
+            return interval;
         }
-        return 0L;
+
+        final double tps = readCurrentTps();
+        final double thresholdMedium = plugin.getConfig().getDouble("screen.tps-threshold-medium", 18.0D);
+        final double thresholdLow = plugin.getConfig().getDouble("screen.tps-threshold-low", 16.0D);
+        final long multiplierMedium = Math.max(1L, plugin.getConfig().getLong("screen.tps-interval-multiplier-medium", 2L));
+        final long multiplierLow = Math.max(1L, plugin.getConfig().getLong("screen.tps-interval-multiplier-low", 4L));
+
+        if (tps <= thresholdLow) {
+            return Math.min(Long.MAX_VALUE / 2L, interval * multiplierLow);
+        }
+        if (tps <= thresholdMedium) {
+            return Math.min(Long.MAX_VALUE / 2L, interval * multiplierMedium);
+        }
+        return interval;
+    }
+
+    private double readCurrentTps() {
+        try {
+            final double[] tps = Bukkit.getTPS();
+            if (tps == null || tps.length == 0) {
+                return 20.0D;
+            }
+            return Math.max(0.0D, tps[0]);
+        } catch (final Throwable ignored) {
+            return 20.0D;
+        }
     }
 
     private static Color[] buildPaletteColors() {

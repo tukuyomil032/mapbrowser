@@ -13,6 +13,11 @@ screen:
   max-height: 8
   max-screens-per-world: 8
   render-distance: 64
+  tps-degrade-enabled: true
+  tps-threshold-medium: 18.0
+  tps-threshold-low: 16.0
+  tps-interval-multiplier-medium: 2
+  tps-interval-multiplier-low: 4
 
 security:
   allow-http: false

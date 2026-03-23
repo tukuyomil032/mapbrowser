@@ -13,6 +13,7 @@ messages:
     "Config reloaded.": "Config reloaded."
     "Unknown item type.": "Unknown item type."
     "Unknown admin command.": "Unknown admin command."
+    "Value must be en, ja or ja-JP.": "Value must be en, ja or ja-JP."
     "Invalid URL format.": "Invalid URL format."
     "Only http/https URL is allowed.": "Only http/https URL is allowed."
     "HTTP is disabled by server config.": "HTTP is disabled by server config."

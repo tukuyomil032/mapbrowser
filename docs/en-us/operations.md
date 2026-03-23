@@ -6,6 +6,8 @@
 - verify renderer process is alive
 - run /mb admin status
 - confirm screen count and ipc connected state
+- verify command UX uses canonical subcommands (`menu`, `delete`, `give-frame`) with aliases normalized
+- verify unloaded screens reject browser controls until `/mb load` is executed
 
 ## Phase4 audio integration validation
 

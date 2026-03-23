@@ -18,6 +18,9 @@ Main file: src/main/resources/config.yml
 - max-width / max-height: screen bounds
 - max-screens-per-world: optional world-level guard
 - render-distance: packet delivery distance
+- tps-degrade-enabled: enable automatic quality downgrade under low TPS
+- tps-threshold-medium / tps-threshold-low: TPS thresholds for throttling stages
+- tps-interval-multiplier-medium / tps-interval-multiplier-low: render interval multipliers applied under each threshold
 
 ## security
 
@@ -63,7 +66,7 @@ Material mapping for control items:
 ## ui
 
 - simulate-particle: particle style for interaction feedback (`end_rod` or `flame`)
-- language: `en` or `ja`
+- language: locale string (recommended: `en`, `ja`, `ja-JP`)
 
 ## localization catalogs
 
@@ -75,6 +78,7 @@ Bundled message catalogs are loaded from `src/main/resources`:
 - `messages_keys_en.yml` / `messages_keys_ja.yml` (key-based UI strings)
 
 Runtime language selection is controlled by `ui.language`.
+Locale fallback order is `ja-JP -> ja -> en`.
 
 ## storage
 

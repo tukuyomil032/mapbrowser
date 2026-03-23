@@ -18,6 +18,9 @@
 - max-width / max-height: 画面サイズ上限
 - max-screens-per-world: ワールド毎上限
 - render-distance: 送信距離
+- tps-degrade-enabled: TPS低下時の自動品質ダウングレード有効化
+- tps-threshold-medium / tps-threshold-low: 段階的な間引き開始TPS閾値
+- tps-interval-multiplier-medium / tps-interval-multiplier-low: 各閾値で描画間隔に掛ける倍率
 
 ## security
 
@@ -61,7 +64,7 @@
 ## ui
 
 - simulate-particle: 操作フィードバック用パーティクル (`end_rod` または `flame`)
-- language: `en` または `ja`
+- language: ロケール文字列（推奨: `en`, `ja`, `ja-JP`）
 
 ## ローカライズ辞書
 
@@ -73,6 +76,7 @@
 - `messages_keys_en.yml` / `messages_keys_ja.yml`（キー方式UI文言）
 
 実行時の言語切替は `ui.language` で制御します。
+ロケールのフォールバック順は `ja-JP -> ja -> en` です。
 
 ## storage
 

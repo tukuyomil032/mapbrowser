@@ -3,7 +3,9 @@ package com.tukuyomil032.mapbrowser.util;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 
@@ -51,19 +53,20 @@ public final class MessageLocalizer {
             return "";
         }
 
-        final boolean ja = "ja".equalsIgnoreCase(language);
-        final Map<String, String> exact = ja ? jaExact : enExact;
-        final Map<String, String> prefix = ja ? jaPrefix : enPrefix;
+        for (final String candidate : localeCandidates(language)) {
+            final Map<String, String> exact = "ja".equals(candidate) ? jaExact : enExact;
+            final Map<String, String> prefix = "ja".equals(candidate) ? jaPrefix : enPrefix;
 
-        final String exactMatch = exact.get(source);
-        if (exactMatch != null) {
-            return exactMatch;
-        }
+            final String exactMatch = exact.get(source);
+            if (exactMatch != null) {
+                return exactMatch;
+            }
 
-        for (final Map.Entry<String, String> entry : prefix.entrySet()) {
-            final String from = entry.getKey();
-            if (source.startsWith(from)) {
-                return entry.getValue() + source.substring(from.length());
+            for (final Map.Entry<String, String> entry : prefix.entrySet()) {
+                final String from = entry.getKey();
+                if (source.startsWith(from)) {
+                    return entry.getValue() + source.substring(from.length());
+                }
             }
         }
 
@@ -74,15 +77,78 @@ public final class MessageLocalizer {
      * Translates a stable message key. Falls back to defaultText when key is missing.
      */
     public String translateKey(final String language, final String key, final String defaultText) {
+        return translateKey(language, key, defaultText, Map.of());
+    }
+
+    /**
+     * Translates a stable message key with placeholder values.
+     */
+    public String translateKey(
+            final String language,
+            final String key,
+            final String defaultText,
+            final Map<String, ?> placeholders
+    ) {
         if (key == null || key.isBlank()) {
             return defaultText == null ? "" : defaultText;
         }
-        final Map<String, String> keys = "ja".equalsIgnoreCase(language) ? jaKeys : enKeys;
-        final String value = keys.get(key);
-        if (value != null) {
-            return value;
+
+        String resolved = null;
+        for (final String candidate : localeCandidates(language)) {
+            final Map<String, String> keys = "ja".equals(candidate) ? jaKeys : enKeys;
+            final String value = keys.get(key);
+            if (value != null) {
+                resolved = value;
+                break;
+            }
         }
-        return defaultText == null ? key : defaultText;
+
+        if (resolved == null) {
+            resolved = defaultText == null ? key : defaultText;
+        }
+        return applyPlaceholders(resolved, placeholders);
+    }
+
+    private String applyPlaceholders(final String template, final Map<String, ?> placeholders) {
+        if (template == null || template.isEmpty() || placeholders == null || placeholders.isEmpty()) {
+            return template == null ? "" : template;
+        }
+
+        String out = template;
+        for (final Map.Entry<String, ?> entry : placeholders.entrySet()) {
+            final String token = "{" + entry.getKey() + "}";
+            final String value = entry.getValue() == null ? "" : String.valueOf(entry.getValue());
+            out = out.replace(token, value);
+        }
+        return out;
+    }
+
+    private List<String> localeCandidates(final String language) {
+        final ArrayList<String> candidates = new ArrayList<>(3);
+        if (language != null && !language.isBlank()) {
+            final String normalized = language.toLowerCase().replace('_', '-');
+            addLocaleCandidate(candidates, normalized);
+
+            final int dash = normalized.indexOf('-');
+            if (dash > 0) {
+                addLocaleCandidate(candidates, normalized.substring(0, dash));
+            }
+        }
+
+        addLocaleCandidate(candidates, "en");
+        return candidates;
+    }
+
+    private void addLocaleCandidate(final List<String> candidates, final String locale) {
+        if (locale == null || locale.isBlank()) {
+            return;
+        }
+        if (!"ja".equals(locale) && !"en".equals(locale)) {
+            return;
+        }
+        if (!candidates.contains(locale)) {
+            candidates.add(locale);
+        }
     }
 
     private void load(
