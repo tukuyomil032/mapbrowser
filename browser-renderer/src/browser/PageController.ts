@@ -33,6 +33,12 @@ export class PageController {
 		1000,
 		120_000,
 	);
+	private static readonly FPS_HYSTERESIS_STREAK = PageController.envInt(
+		"MAPBROWSER_FPS_HYSTERESIS_STREAK",
+		2,
+		1,
+		10,
+	);
 
 	private browser: Browser | null = null;
 	private page: Page | null = null;
@@ -60,6 +66,9 @@ export class PageController {
 	private metricsSkipped = 0;
 	private metricsFrameEmitted = 0;
 	private metricsDeltaEmitted = 0;
+	private level1OverloadStreak = 0;
+	private level2OverloadStreak = 0;
+	private recoveryStreak = 0;
 
 	public constructor(
 		widthMaps: number,
@@ -172,6 +181,9 @@ export class PageController {
 		this.lastTuneAtMs = Date.now();
 		this.consecutiveSkipFrames = 0;
 		this.resetMetricsWindow();
+		this.level1OverloadStreak = 0;
+		this.level2OverloadStreak = 0;
+		this.recoveryStreak = 0;
 		await this.startCapture();
 	}
 
@@ -368,9 +380,27 @@ export class PageController {
 		let nextAdaptive = this.contentAwareRequestedFps;
 
 		if (this.smoothedProcessMs > PageController.FPS_LEVEL2_PROCESS_MS) {
-			nextAdaptive = 4;
+			this.level2OverloadStreak++;
+			this.level1OverloadStreak++;
+			this.recoveryStreak = 0;
 		} else if (this.smoothedProcessMs > PageController.FPS_LEVEL1_PROCESS_MS) {
+			this.level1OverloadStreak++;
+			this.level2OverloadStreak = 0;
+			this.recoveryStreak = 0;
+		} else {
+			this.recoveryStreak++;
+			this.level1OverloadStreak = 0;
+			this.level2OverloadStreak = 0;
+		}
+
+		if (this.level2OverloadStreak >= PageController.FPS_HYSTERESIS_STREAK) {
+			nextAdaptive = 4;
+		} else if (
+			this.level1OverloadStreak >= PageController.FPS_HYSTERESIS_STREAK
+		) {
 			nextAdaptive = 6;
+		} else if (this.recoveryStreak >= PageController.FPS_HYSTERESIS_STREAK) {
+			nextAdaptive = this.contentAwareRequestedFps;
 		}
 
 		if (this.droppedByThrottle >= 4) {
