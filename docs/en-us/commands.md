@@ -13,15 +13,14 @@ Base command:
 - /mb info
 - /mb load [screen-id|screen-name|latest]
 - /mb unload [screen-id|screen-name|latest]
-- /mb delete|remove|destroy [screen-id|screen-name|latest]
-- /mb give-frame|gif <screen-id|screen-name|latest> <tile-range>
+- /mb delete [screen-id|screen-name|latest]
+- /mb give-frame <screen-id|screen-name|latest> <tile-range>
 - /mb resize <screen-id|screen-name|latest> <w> <h>
 - /mb exit
 
 ## Menu
 
 - /mb menu
-- /mb gui
 
 ## Browser control
 
@@ -54,6 +53,9 @@ Base command:
 
 - Most commands are player-only.
 - Most commands target selected screen when screen argument is omitted.
+- Alias policy: `gui` -> `menu`, `remove`/`destroy` -> `delete`, `gif` -> `give-frame`.
+- Tab completion and help list canonical subcommands only.
+- Browser interaction commands (`open`, `type`, `back`, `forward`, `reload`, `fps`) require loaded/active screen. Use `/mb load` after `/mb unload`.
 - Tile selector supports `all`, `odd`, `even`, coordinate `x-y`, rectangle `x1-y1:x2-y2`, and linear range `n..m`.
 - Examples: `all`, `odd`, `1-2`, `1-1:3-2`, `1`, `1..3`, `1,4,6..8`.
 - URL input is validated by security rules.

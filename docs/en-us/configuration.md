@@ -65,6 +65,17 @@ Material mapping for control items:
 - simulate-particle: particle style for interaction feedback (`end_rod` or `flame`)
 - language: `en` or `ja`
 
+## localization catalogs
+
+Bundled message catalogs are loaded from `src/main/resources`:
+
+- `messages_en.yml` / `messages_ja.yml` (core command/runtime messages)
+- `messages_input_en.yml` / `messages_input_ja.yml` (input/anvil flow messages)
+- `messages_admin_en.yml` / `messages_admin_ja.yml` (admin/perf/status messages)
+- `messages_keys_en.yml` / `messages_keys_ja.yml` (key-based UI strings)
+
+Runtime language selection is controlled by `ui.language`.
+
 ## storage
 
 - yaml

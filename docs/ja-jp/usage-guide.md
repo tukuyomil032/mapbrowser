@@ -98,10 +98,10 @@ sequenceDiagram
 | `/mb info` | `/mb info` | 現在選択中スクリーンの詳細 | URL, 状態, サイズを確認 |
 | `/mb load [screen]` | `/mb load latest` | 指定スクリーンをロード | 省略時は選択中 |
 | `/mb unload [screen]` | `/mb unload` | 指定スクリーンをアンロード | 省略時は選択中 |
-| `/mb give-frame\|gif <screen> <tile-selector>` | `/mb gif lobby 1-2` | 指定タイルの地図を再取得 | `x-y`座標、`x1-y1:x2-y2`矩形、`n..m`範囲に対応 |
+| `/mb give-frame <screen> <tile-selector>` | `/mb give-frame lobby 1-2` | 指定タイルの地図を再取得 | `gif` はエイリアス。`x-y`座標、`x1-y1:x2-y2`矩形、`n..m`範囲に対応 |
 | `/mb resize <screen> <w> <h>` | `/mb resize lobby 3 2` | 画面サイズを再構成 | URL/FPSは維持して再OPEN |
-| `/mb destroy` | `/mb destroy` | 現在選択中スクリーンを削除 | `delete` / `remove` エイリアスあり |
-| `/mb menu` / `/mb gui` | `/mb menu` | GUI メニューを開く | アイテム配布やFPS変更に便利 |
+| `/mb delete` | `/mb delete` | 現在選択中スクリーンを削除 | `remove` / `destroy` はエイリアス |
+| `/mb menu` | `/mb menu` | GUI メニューを開く | `gui` はエイリアス。アイテム配布やFPS変更に便利 |
 
 ### 2) ブラウザ操作
 
@@ -184,6 +184,7 @@ sequenceDiagram
 - text-delete は Backspace（Sneak時は Ctrl+A + Backspace）
 - text-enter は Enter キー入力
 - URL は security 設定でバリデーション
+- `/mb unload` したスクリーンは、`/mb load` するまでブラウザ操作を受け付けない
 
 ## 典型的な利用シナリオ
 

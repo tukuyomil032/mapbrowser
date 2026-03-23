@@ -18,3 +18,10 @@ Keep selected root markdown files as canonical project-level documents shared ac
 | API.md | Public API contract draft | Keep canonical at root, link from locale docs |
 
 If a root document requires language-specific explanation, create an explanatory companion in each locale directory and link back to the canonical root file.
+
+## Current Implementation Notes
+
+- Command UX uses canonical subcommands with alias normalization.
+	- `gui -> menu`, `remove/destroy -> delete`, `gif -> give-frame`
+- Tab completion and help prioritize canonical subcommands.
+- Message localization is YAML-based (`messages_*.yml`) with default language `en` and optional `ja`.

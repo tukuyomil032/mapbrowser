@@ -6,6 +6,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -49,6 +50,12 @@ import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
  */
 public final class MapBrowserCommand implements CommandExecutor, TabCompleter, Listener {
     private static final String MENU_TITLE = "MapBrowser Menu";
+    private static final Map<String, String> SUBCOMMAND_ALIASES = Map.of(
+            "gui", "menu",
+            "remove", "delete",
+            "destroy", "delete",
+            "gif", "give-frame"
+    );
 
     private final MapBrowserPlugin plugin;
     private final HashMap<UUID, Integer> perfBenchTaskIds;
@@ -82,10 +89,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
         if (args.length == 0) {
             sendHeader(sender, tk("command.help.title", "MAPBROWSER COMMANDS", "MapBrowser コマンド一覧"));
             sendInfo(sender, tk("command.help.create", "/mb create <w> <h> [name] [--autofill]", "/mb create <w> <h> [name] [--autofill]"));
-            sendInfo(sender, tk("command.help.menu", "/mb menu|gui", "/mb menu|gui"));
+            sendInfo(sender, tk("command.help.menu", "/mb menu (alias: gui)", "/mb menu (alias: gui)"));
             sendInfo(sender, tk("command.help.select", "/mb select <screen-id|screen-name>", "/mb select <screen-id|screen-name>"));
-            sendInfo(sender, "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete|destroy [screen], /mb exit");
-            sendInfo(sender, "/mb give-frame|gif <screen> <tile-range>, /mb resize <screen> <w> <h>");
+            sendInfo(sender, "/mb list, /mb info, /mb load [screen], /mb unload [screen], /mb delete [screen] (alias: remove, destroy), /mb exit");
+            sendInfo(sender, "/mb give-frame <screen> <tile-range> (alias: gif), /mb resize <screen> <w> <h>");
             sendInfo(sender, "/mb config simulate_particle <end_rod|flame>");
             sendInfo(sender, "/mb config language <en|ja>");
             sendInfo(sender, "/mb open <url>, /mb type <text>, /mb back, /mb forward, /mb reload, /mb fps <value>");
@@ -95,10 +102,10 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             return true;
         }
 
-        final String sub = args[0].toLowerCase(Locale.ROOT);
+        final String sub = canonicalSubcommand(args[0]);
         return switch (sub) {
             case "create" -> handleCreate(sender, args);
-            case "menu", "gui" -> handleMenu(sender);
+            case "menu" -> handleMenu(sender);
             case "select" -> handleSelect(sender, args);
             case "open" -> handleOpen(sender, args);
             case "type" -> handleType(sender, args);
@@ -110,8 +117,8 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             case "info" -> handleInfo(sender);
             case "load" -> handleLoad(sender, args);
             case "unload" -> handleUnload(sender, args);
-            case "delete", "remove", "destroy" -> handleDestroy(sender, args);
-            case "give-frame", "gif" -> handleGiveFrame(sender, args);
+            case "delete" -> handleDestroy(sender, args);
+            case "give-frame" -> handleGiveFrame(sender, args);
             case "resize" -> handleResize(sender, args);
             case "config" -> handleConfig(sender, args);
             case "give" -> handleGive(sender, args);
@@ -134,22 +141,23 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             final String alias,
             final String[] args
     ) {
+        final String sub = args.length > 0 ? canonicalSubcommand(args[0]) : "";
         if (args.length == 1) {
-            return Arrays.asList("create", "menu", "gui", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "load", "unload", "delete", "destroy", "give-frame", "gif", "resize", "config", "give", "exit", "admin");
+            return Arrays.asList("create", "menu", "select", "open", "type", "back", "forward", "reload", "fps", "list", "info", "load", "unload", "delete", "give-frame", "resize", "config", "give", "exit", "admin");
         }
-        if (args.length == 2 && "create".equalsIgnoreCase(args[0])) {
+        if (args.length == 2 && "create".equals(sub)) {
             return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
         }
-        if (args.length == 3 && "create".equalsIgnoreCase(args[0])) {
+        if (args.length == 3 && "create".equals(sub)) {
             return rangeValues(plugin.getConfig().getInt("screen.max-height", 8));
         }
-        if (args.length >= 4 && "create".equalsIgnoreCase(args[0])) {
+        if (args.length >= 4 && "create".equals(sub)) {
             return List.of("--autofill");
         }
-        if (args.length == 2 && ("delete".equalsIgnoreCase(args[0]) || "destroy".equalsIgnoreCase(args[0]) || "resize".equalsIgnoreCase(args[0]) || "load".equalsIgnoreCase(args[0]) || "unload".equalsIgnoreCase(args[0]) || "give-frame".equalsIgnoreCase(args[0]) || "gif".equalsIgnoreCase(args[0]))) {
+        if (args.length == 2 && ("delete".equals(sub) || "resize".equals(sub) || "load".equals(sub) || "unload".equals(sub) || "give-frame".equals(sub))) {
             return screenNameSuggestions();
         }
-        if (args.length == 3 && ("give-frame".equalsIgnoreCase(args[0]) || "gif".equalsIgnoreCase(args[0])) ) {
+        if (args.length == 3 && "give-frame".equals(sub)) {
             if (sender instanceof Player player) {
                 final Optional<Screen> target = resolveScreen(args[1], player);
                 if (target.isPresent()) {
@@ -160,22 +168,22 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             }
             return List.of("all", "odd", "even", "1-1", "1-2", "1-1:2-2", "1..3", "1");
         }
-        if (args.length == 3 && "resize".equalsIgnoreCase(args[0])) {
+        if (args.length == 3 && "resize".equals(sub)) {
             return rangeValues(plugin.getConfig().getInt("screen.max-width", 8));
         }
-        if (args.length == 4 && "resize".equalsIgnoreCase(args[0])) {
+        if (args.length == 4 && "resize".equals(sub)) {
             return rangeValues(plugin.getConfig().getInt("screen.max-height", 8));
         }
-        if (args.length == 2 && "config".equalsIgnoreCase(args[0])) {
+        if (args.length == 2 && "config".equals(sub)) {
             return List.of("simulate_particle", "language");
         }
-        if (args.length == 3 && "config".equalsIgnoreCase(args[0]) && "simulate_particle".equalsIgnoreCase(args[1])) {
+        if (args.length == 3 && "config".equals(sub) && "simulate_particle".equalsIgnoreCase(args[1])) {
             return List.of("end_rod", "flame");
         }
-        if (args.length == 3 && "config".equalsIgnoreCase(args[0]) && "language".equalsIgnoreCase(args[1])) {
+        if (args.length == 3 && "config".equals(sub) && "language".equalsIgnoreCase(args[1])) {
             return List.of("en", "ja");
         }
-        if (args.length == 2 && "select".equalsIgnoreCase(args[0])) {
+        if (args.length == 2 && "select".equals(sub)) {
             final List<String> names = plugin.getScreenManager().getAllScreens().stream()
                     .sorted(Comparator.comparing(Screen::getCreatedAt).reversed())
                     .limit(20)
@@ -186,19 +194,24 @@ public final class MapBrowserCommand implements CommandExecutor, TabCompleter, L
             values.addAll(names);
             return values;
         }
-        if (args.length == 2 && "give".equalsIgnoreCase(args[0])) {
+        if (args.length == 2 && "give".equals(sub)) {
             return Arrays.asList("pointer-left", "pointer-right", "pointer", "back", "forward", "reload", "url-bar", "text-input", "text-delete", "text-enter", "scroll", "scroll-up", "scroll-down");
         }
-        if (args.length == 2 && "admin".equalsIgnoreCase(args[0])) {
+        if (args.length == 2 && "admin".equals(sub)) {
             return List.of("status", "deps", "reload", "perf", "perfbench", "stop");
         }
-        if (args.length == 3 && "admin".equalsIgnoreCase(args[0]) && ("stop".equalsIgnoreCase(args[1]) || "perf".equalsIgnoreCase(args[1]))) {
+        if (args.length == 3 && "admin".equals(sub) && ("stop".equalsIgnoreCase(args[1]) || "perf".equalsIgnoreCase(args[1]))) {
             return screenNameSuggestions();
         }
-        if (args.length == 3 && "admin".equalsIgnoreCase(args[0]) && "perfbench".equalsIgnoreCase(args[1])) {
+        if (args.length == 3 && "admin".equals(sub) && "perfbench".equalsIgnoreCase(args[1])) {
             return List.of("30", "60", "120");
         }
         return List.of();
+    }
+
+    private String canonicalSubcommand(final String raw) {
+        final String normalized = raw == null ? "" : raw.toLowerCase(Locale.ROOT);
+        return SUBCOMMAND_ALIASES.getOrDefault(normalized, normalized);
     }
 
     private boolean handleCreate(final CommandSender sender, final String[] args) {

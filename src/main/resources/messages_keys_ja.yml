@@ -2,7 +2,7 @@ messages:
   keys:
     command.help.title: "MapBrowser コマンド一覧"
     command.help.create: "/mb create <w> <h> [name] [--autofill]"
-    command.help.menu: "/mb menu|gui"
+    command.help.menu: "/mb menu (alias: gui)"
     command.help.select: "/mb select <screen-id|screen-name>"
     command.error.unknown-subcommand: "不明なサブコマンドです。/mb を使用してください。"
     command.error.player-only: "このコマンドはプレイヤー専用です。"

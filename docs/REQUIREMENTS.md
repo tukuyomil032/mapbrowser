@@ -826,7 +826,7 @@ Chromium → CDP WebAudio domain → PCM バッファ (Node.js)
 | コマンド | 説明 | 権限 |
 |---------|------|------|
 | `/mb create <w> <h> [name]` | 見ているブロック面にスクリーンを作成 | `mapbrowser.create` |
-| `/mb destroy [name\|id]` | スクリーンを削除 | `mapbrowser.destroy` |
+| `/mb delete [name\|id]` | スクリーンを削除（alias: `remove`, `destroy`） | `mapbrowser.destroy` |
 | `/mb open <url>` | URL を開く | `mapbrowser.use` |
 | `/mb back` | ブラウザバック | `mapbrowser.use` |
 | `/mb forward` | ブラウザ進む | `mapbrowser.use` |
@@ -835,6 +835,7 @@ Chromium → CDP WebAudio domain → PCM バッファ (Node.js)
 | `/mb info [name\|id]` | スクリーン詳細 | `mapbrowser.use` |
 | `/mb fps <value>` | FPS 変更 | `mapbrowser.use` |
 | `/mb give <item>` | 操作アイテムを付与 | `mapbrowser.use` |
+| `/mb give-frame <name\|id> <tile-range>` | 指定タイルの地図を再配布（alias: `gif`） | `mapbrowser.use` |
 | `/mb exit` | 操作モード終了 | — |
 | `/mb admin reload` | プラグインリロード | `mapbrowser.reload` |
 | `/mb admin status` | browser-renderer の状態確認 | `mapbrowser.admin` |

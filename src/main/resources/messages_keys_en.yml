@@ -2,7 +2,7 @@ messages:
   keys:
     command.help.title: "MAPBROWSER COMMANDS"
     command.help.create: "/mb create <w> <h> [name] [--autofill]"
-    command.help.menu: "/mb menu|gui"
+    command.help.menu: "/mb menu (alias: gui)"
     command.help.select: "/mb select <screen-id|screen-name>"
     command.error.unknown-subcommand: "Unknown subcommand. Use /mb"
     command.error.player-only: "Player only command."

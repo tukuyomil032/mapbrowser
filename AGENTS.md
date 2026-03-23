@@ -42,7 +42,8 @@ MAPBROWSER/
 │   │   └── DataStore.java         ← SQLite / YAML 永続化
 │   └── util/
 │       ├── MapColorUtil.java       ← Minecraft 144色パレット定義
-│       └── RaycastUtil.java        ← クリック位置 → ブラウザ座標 変換
+│       ├── RaycastUtil.java        ← クリック位置 → ブラウザ座標 変換
+│       └── MessageLocalizer.java   ← EN/JAメッセージ辞書（YAML）ローダー
 │
 ├── browser-renderer/
 │   └── src/
@@ -165,9 +166,26 @@ Payload:
 
 ### Java 側を修正する前に
 
-- `paper-plugin.yml` の依存関係（PacketEvents, AnvilGUI）が正しく記述されているか確認
+- `plugin.yml` の依存関係（PacketEvents, AnvilGUI, LuckPerms, Vault）が正しく記述されているか確認
 - Minecraft イベントを扱う場合は必ずメインスレッドで実行されているか確認
 - `ClientboundMapItemDataPacket` の構造は Minecraft バージョンごとに異なる。1.21 系に対応したコードを書くこと
+
+### コマンド実装時のルール
+
+- サブコマンドは**正規名1つ**を中心に実装し、別名はエイリアスとして正規名へ正規化すること
+  - 現在の方針: `gui -> menu`, `remove/destroy -> delete`, `gif -> give-frame`
+- Tab補完とヘルプは正規名を優先表示し、エイリアスは注記として扱うこと
+- `unload` 後のスクリーンに対するブラウザ操作（open/type/back/forward/reload/fps）は拒否し、`load` を明示要求すること
+
+### メッセージ/ローカライズ運用
+
+- `ui.language` は `en` を既定値とし、`ja` 切替に対応する
+- メッセージは `src/main/resources` のYAML辞書で管理する
+  - `messages_en.yml` / `messages_ja.yml`（基本）
+  - `messages_input_en.yml` / `messages_input_ja.yml`（入力系）
+  - `messages_admin_en.yml` / `messages_admin_ja.yml`（admin系）
+  - `messages_keys_en.yml` / `messages_keys_ja.yml`（キー方式）
+- 新規文言は可能な限りキー方式（`messages_keys_*.yml`）を優先し、既存の生文言置換は段階的に縮小すること
 
 ### Node.js 側を修正する前に
 
@@ -263,7 +281,7 @@ pnpm typecheck
 ```
 1. ./gradlew shadowJar でプラグインをビルド
 2. build/libs/MapBrowser-*.jar を minecraft-server/plugins/ にコピー
-3. PacketEvents.jar と AnvilGUI.jar も plugins/ にあることを確認
+3. PacketEvents.jar（推奨）と必要に応じて LuckPerms/Vault を plugins/ に配置
 4. サーバー起動（初回は Chromium の自動ダウンロードで数分かかる）
 5. ゲームに参加して /mb create 2 2 test で動作確認
 ```

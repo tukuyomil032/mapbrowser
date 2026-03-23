@@ -13,15 +13,14 @@
 - /mb info
 - /mb load [screen-id|screen-name|latest]
 - /mb unload [screen-id|screen-name|latest]
-- /mb delete|remove|destroy [screen-id|screen-name|latest]
-- /mb give-frame|gif <screen-id|screen-name|latest> <tile-range>
+- /mb delete [screen-id|screen-name|latest]
+- /mb give-frame <screen-id|screen-name|latest> <tile-range>
 - /mb resize <screen-id|screen-name|latest> <w> <h>
 - /mb exit
 
 ## メニュー
 
 - /mb menu
-- /mb gui
 
 ## ブラウザ操作
 
@@ -54,6 +53,9 @@
 
 - 多くのコマンドはプレイヤー実行前提です。
 - 画面引数を省略した場合は、選択中スクリーンが対象です。
+- エイリアス方針: `gui` -> `menu`, `remove`/`destroy` -> `delete`, `gif` -> `give-frame`。
+- 補完候補とヘルプ表示は正規サブコマンドのみ表示します。
+- ブラウザ操作コマンド（`open`, `type`, `back`, `forward`, `reload`, `fps`）はロード済みスクリーンのみ対象です。`/mb unload` 後は `/mb load` が必要です。
 - タイル指定は `all` / `odd` / `even`、座標 `x-y`、矩形 `x1-y1:x2-y2`、連番範囲 `n..m` に対応します。
 - 例: `all`, `odd`, `1-2`, `1-1:3-2`, `1`, `1..3`, `1,4,6..8`。
 - URL はセキュリティ設定で検証されます。

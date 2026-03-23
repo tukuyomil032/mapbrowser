@@ -63,6 +63,17 @@
 - simulate-particle: 操作フィードバック用パーティクル (`end_rod` または `flame`)
 - language: `en` または `ja`
 
+## ローカライズ辞書
+
+メッセージ辞書は `src/main/resources` 配下の YAML から読み込みます。
+
+- `messages_en.yml` / `messages_ja.yml`（基本メッセージ）
+- `messages_input_en.yml` / `messages_input_ja.yml`（入力/Anvil系）
+- `messages_admin_en.yml` / `messages_admin_ja.yml`（admin/perf/status系）
+- `messages_keys_en.yml` / `messages_keys_ja.yml`（キー方式UI文言）
+
+実行時の言語切替は `ui.language` で制御します。
+
 ## storage
 
 - yaml
