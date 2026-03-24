@@ -34,7 +34,7 @@
 
 - [x] `AGENTS.md` の構成図を実装に追従
 - [x] `docs/REQUIREMENTS.md` に分割構造と最新最適化を反映
-- [ ] `docs/ja-jp/architecture.md` / `docs/en-us/architecture.md` に詳細追記（必要なら次段で反映）
+- [x] `docs/ja-jp/architecture.md` / `docs/en-us/architecture.md` に詳細追記
 
 ## この仕様にない追加改善（今回実装）
 

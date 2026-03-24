@@ -38,6 +38,32 @@ flowchart LR
 | Node | FrameProcessor | リサイズ・量子化・差分/全体判定 |
 | Node | quantize.worker | Worker スレッドで量子化 |
 
+## Java 側の責務分割（実装反映）
+
+### command パッケージ
+
+| クラス | 主責務 |
+|---|---|
+| MapBrowserCommand | サブコマンドのディスパッチと共通連携 |
+| MapAdminSupport | admin/perf/perfbench/stop の処理 |
+| MapMenuSupport | /mb menu の描画とクリック処理 |
+| MapToolItemSupport | /mb give ツール生成・配布 |
+| MapScreenInfoSupport | /mb list と /mb info の表示 |
+| MapTileRangeParser | give-frame の tile-range 構文解析 |
+| MapItemDistributor | 画面タイルマップの生成・配布 |
+| MapCommandMessageRenderer | コマンドUI（見出し/成功/失敗/情報）の描画 |
+| MapCommandLocalization | コマンド文言の言語解決・キー翻訳 |
+| MapScreenQueryResolver | screen-id/name/latest の解決 |
+
+### input パッケージ
+
+| クラス | 主責務 |
+|---|---|
+| InputHandler | イベント受信と操作ルーティング |
+| FrameClickResolver | 額縁ヒット位置からブラウザ座標への変換 |
+| InputMessageHelper | 入力系メッセージのローカライズ送信 |
+| InputScreenMapItemFactory | 自動配置用の画面紐付けマップ生成 |
+
 ## 通信ワークフロー
 
 ```mermaid
@@ -73,6 +99,15 @@ sequenceDiagram
 4. 差分矩形を算出
 5. 差分が大きければ FRAME にフォールバック
 6. Java 側へ FRAME または DELTA_FRAME を送信
+
+### 実装済み最適化ポイント
+
+- シーン別ポリシー: 静止/動画で diff threshold, tile threshold, skip ratio を切替
+- 割合ベースSKIP: changedPixels / totalPixels が閾値未満なら送信抑制
+- 中央優先: 画面中央に近いタイルを優先
+- タイル結合: 隣接タイルを結合して DELTA 更新件数を削減
+- 動的FPS調整: 処理時間と負荷状態に応じた adaptive fps
+- Java LUT: MapColorUtil は 24bit LUT による O(1) 変換を提供
 
 ```mermaid
 flowchart TD

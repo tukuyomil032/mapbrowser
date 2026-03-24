@@ -38,6 +38,32 @@ flowchart LR
 | Node | FrameProcessor | Resize, quantize, delta/full-frame decision |
 | Node | quantize.worker | Palette quantization in worker thread |
 
+## Java Responsibility Split (as implemented)
+
+### command package
+
+| Class | Primary responsibility |
+|---|---|
+| MapBrowserCommand | Subcommand dispatch and shared wiring |
+| MapAdminSupport | admin/perf/perfbench/stop command logic |
+| MapMenuSupport | /mb menu rendering and click handling |
+| MapToolItemSupport | /mb give tool item creation/distribution |
+| MapScreenInfoSupport | /mb list and /mb info rendering |
+| MapTileRangeParser | give-frame tile-range syntax parsing |
+| MapItemDistributor | Screen tile map creation and delivery |
+| MapCommandMessageRenderer | Styled command UI output rendering |
+| MapCommandLocalization | Language resolution and key-based localization |
+| MapScreenQueryResolver | screen-id/name/latest query resolution |
+
+### input package
+
+| Class | Primary responsibility |
+|---|---|
+| InputHandler | Event intake and action routing |
+| FrameClickResolver | Item-frame hit normalization to browser coordinates |
+| InputMessageHelper | Input-side localized message sending |
+| InputScreenMapItemFactory | Screen-bound map item generation for auto-assemble |
+
 ## Communication Workflow
 
 ```mermaid
@@ -73,6 +99,15 @@ sequenceDiagram
 4. delta rectangle is computed
 5. if delta is too large, full frame fallback is used
 6. FRAME or DELTA_FRAME is sent to Java side
+
+### Implemented optimization highlights
+
+- Scene-aware policy: separate diff threshold, tile threshold, and skip ratio for still vs video
+- Ratio-based skip: suppress updates when changedPixels / totalPixels is below threshold
+- Center-priority ranking: prioritize tiles near viewport center
+- Tile merge: merge adjacent tiles to reduce DELTA update count
+- Adaptive FPS control: tune fps by processing cost and load signal
+- Java LUT path: MapColorUtil now provides O(1) 24-bit lookup conversion
 
 ```mermaid
 flowchart TD
