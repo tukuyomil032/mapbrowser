@@ -36,32 +36,51 @@ export type ProcessResult =
 	  };
 
 export class FrameProcessor {
+	private static readonly STILL_DIFF_THRESHOLD = FrameProcessor.envInt(
+		"MAPBROWSER_STILL_DIFF_THRESHOLD",
+		5,
+		1,
+		30,
+	);
+	private static readonly VIDEO_DIFF_THRESHOLD = FrameProcessor.envInt(
+		"MAPBROWSER_VIDEO_DIFF_THRESHOLD",
+		8,
+		1,
+		30,
+	);
+	private static readonly STILL_TILE_CHANGED_THRESHOLD = FrameProcessor.envInt(
+		"MAPBROWSER_STILL_TILE_CHANGED_THRESHOLD",
+		5,
+		1,
+		256,
+	);
+	private static readonly VIDEO_TILE_CHANGED_THRESHOLD = FrameProcessor.envInt(
+		"MAPBROWSER_VIDEO_TILE_CHANGED_THRESHOLD",
+		10,
+		1,
+		256,
+	);
+	private static readonly STILL_SKIP_RATIO = FrameProcessor.envFloat(
+		"MAPBROWSER_STILL_SKIP_RATIO",
+		0.005,
+		0,
+		1,
+	);
+	private static readonly VIDEO_SKIP_RATIO = FrameProcessor.envFloat(
+		"MAPBROWSER_VIDEO_SKIP_RATIO",
+		0.02,
+		0,
+		1,
+	);
 	private readonly pool: Piscina;
 	private prevColorData: Uint8Array | null = null;
 	private prevLumaData: Uint8Array | null = null;
+	private videoMode = false;
 	private static readonly TILE_SIZE = FrameProcessor.envInt(
 		"MAPBROWSER_TILE_SIZE",
 		16,
 		4,
 		64,
-	);
-	private static readonly LUMA_THRESHOLD = FrameProcessor.envInt(
-		"MAPBROWSER_LUMA_THRESHOLD",
-		5,
-		1,
-		30,
-	);
-	private static readonly TILE_CHANGED_THRESHOLD = FrameProcessor.envInt(
-		"MAPBROWSER_TILE_CHANGED_THRESHOLD",
-		10,
-		1,
-		256,
-	);
-	private static readonly FRAME_SKIP_CHANGED_PIXELS = FrameProcessor.envInt(
-		"MAPBROWSER_SKIP_CHANGED_PIXELS",
-		30,
-		1,
-		4096,
 	);
 	private static readonly MAX_DELTA_TILES = FrameProcessor.envInt(
 		"MAPBROWSER_MAX_DELTA_TILES",
@@ -84,11 +103,16 @@ export class FrameProcessor {
 		});
 	}
 
+	public setVideoMode(videoMode: boolean): void {
+		this.videoMode = videoMode;
+	}
+
 	public async process(
 		pngBuffer: Buffer,
 		screenWMaps: number,
 		screenHMaps: number,
 	): Promise<ProcessResult> {
+		const config = this.currentDiffConfig();
 		const width = screenWMaps * 128;
 		const height = screenHMaps * 128;
 
@@ -143,7 +167,7 @@ export class FrameProcessor {
 					for (let x = tx; x < maxX; x++) {
 						const i = rowOffset + x;
 						const lumaDiff = Math.abs(filteredLuma[i] - prevLumaData[i]);
-						if (lumaDiff < FrameProcessor.LUMA_THRESHOLD) {
+						if (lumaDiff < config.diffThreshold) {
 							continue;
 						}
 						if (colorData[i] === prevColorData[i]) {
@@ -154,7 +178,7 @@ export class FrameProcessor {
 					}
 				}
 
-				if (tileChanged > FrameProcessor.TILE_CHANGED_THRESHOLD) {
+				if (tileChanged > config.tileChangedThreshold) {
 					changedTiles.push({ x: tx, y: ty, changed: tileChanged });
 				}
 			}
@@ -164,11 +188,12 @@ export class FrameProcessor {
 			return { type: "SKIP" };
 		}
 
-		if (changedPixels < FrameProcessor.FRAME_SKIP_CHANGED_PIXELS) {
+		const totalPixels = width * height;
+		const changeRatio = changedPixels / Math.max(1, totalPixels);
+		if (changeRatio < config.skipRatio) {
 			return { type: "SKIP" };
 		}
 
-		const totalPixels = width * height;
 		const totalTileCount =
 			Math.ceil(width / tileSize) * Math.ceil(height / tileSize);
 		const changedTileRatio = changedTiles.length / totalTileCount;
@@ -207,14 +232,13 @@ export class FrameProcessor {
 		});
 
 		const selectedTiles = changedTiles.slice(0, FrameProcessor.MAX_DELTA_TILES);
-		const updates = selectedTiles.map((tile) => {
-			const w = Math.min(tileSize, width - tile.x);
-			const h = Math.min(tileSize, height - tile.y);
-			const delta = new Uint8Array(w * h);
+		const mergedTiles = this.mergeAdjacentTiles(selectedTiles, width, height);
+		const mergedUpdates = mergedTiles.map((tile) => {
+			const delta = new Uint8Array(tile.w * tile.h);
 			let offset = 0;
-			for (let y = tile.y; y < tile.y + h; y++) {
+			for (let y = tile.y; y < tile.y + tile.h; y++) {
 				const rowOffset = y * width;
-				for (let x = tile.x; x < tile.x + w; x++) {
+				for (let x = tile.x; x < tile.x + tile.w; x++) {
 					delta[offset++] = colorData[rowOffset + x] ?? 0;
 				}
 			}
@@ -222,19 +246,19 @@ export class FrameProcessor {
 				data: delta,
 				x: tile.x,
 				y: tile.y,
-				w,
-				h,
+				w: tile.w,
+				h: tile.h,
 			};
 		});
 
 		this.prevColorData = colorData;
 		this.prevLumaData = filteredLuma;
 		logger.debug(
-			`Delta batch: tiles=${updates.length} changedPixels=${changedPixels}/${totalPixels}`,
+			`Delta batch: tiles=${mergedUpdates.length} changedPixels=${changedPixels}/${totalPixels} ratio=${changeRatio.toFixed(4)} mode=${this.videoMode ? "video" : "still"}`,
 		);
 
-		if (updates.length === 1) {
-			const update = updates[0];
+		if (mergedUpdates.length === 1) {
+			const update = mergedUpdates[0];
 			return {
 				type: "DELTA_FRAME",
 				data: update.data,
@@ -247,8 +271,66 @@ export class FrameProcessor {
 
 		return {
 			type: "DELTA_BATCH",
-			updates,
+			updates: mergedUpdates,
 		};
+	}
+
+	private currentDiffConfig(): {
+		diffThreshold: number;
+		tileChangedThreshold: number;
+		skipRatio: number;
+	} {
+		if (this.videoMode) {
+			return {
+				diffThreshold: FrameProcessor.VIDEO_DIFF_THRESHOLD,
+				tileChangedThreshold: FrameProcessor.VIDEO_TILE_CHANGED_THRESHOLD,
+				skipRatio: FrameProcessor.VIDEO_SKIP_RATIO,
+			};
+		}
+		return {
+			diffThreshold: FrameProcessor.STILL_DIFF_THRESHOLD,
+			tileChangedThreshold: FrameProcessor.STILL_TILE_CHANGED_THRESHOLD,
+			skipRatio: FrameProcessor.STILL_SKIP_RATIO,
+		};
+	}
+
+	private mergeAdjacentTiles(
+		tiles: Array<{ x: number; y: number; changed: number }>,
+		width: number,
+		height: number,
+	): Array<{ x: number; y: number; w: number; h: number }> {
+		if (tiles.length <= 1) {
+			return tiles.map((tile) => ({
+				x: tile.x,
+				y: tile.y,
+				w: Math.min(FrameProcessor.TILE_SIZE, width - tile.x),
+				h: Math.min(FrameProcessor.TILE_SIZE, height - tile.y),
+			}));
+		}
+
+		const sorted = [...tiles].sort((a, b) =>
+			a.y === b.y ? a.x - b.x : a.y - b.y,
+		);
+		const merged: Array<{ x: number; y: number; w: number; h: number }> = [];
+
+		for (const tile of sorted) {
+			const tw = Math.min(FrameProcessor.TILE_SIZE, width - tile.x);
+			const th = Math.min(FrameProcessor.TILE_SIZE, height - tile.y);
+			const last = merged[merged.length - 1];
+			if (
+				last &&
+				last.y === tile.y &&
+				last.h === th &&
+				last.x + last.w === tile.x &&
+				last.w + tw <= FrameProcessor.TILE_SIZE * 4
+			) {
+				last.w += tw;
+				continue;
+			}
+			merged.push({ x: tile.x, y: tile.y, w: tw, h: th });
+		}
+
+		return merged;
 	}
 
 	private buildLumaData(

@@ -429,6 +429,7 @@ export class PageController {
 
 	private applyContentFpsPolicy(url: string): void {
 		const isVideo = this.isLikelyVideoUrl(url);
+		this.frameProcessor.setVideoMode(isVideo);
 		this.contentAwareRequestedFps = isVideo
 			? Math.max(this.requestedFps, 10)
 			: Math.min(this.requestedFps, 3);
@@ -442,6 +443,9 @@ export class PageController {
 		return (
 			normalized.includes("youtube.com") ||
 			normalized.includes("youtu.be") ||
+			normalized.includes("twitch.tv") ||
+			normalized.includes("vimeo.com") ||
+			normalized.includes("dailymotion.com") ||
 			normalized.includes("/watch?") ||
 			normalized.includes("/shorts/")
 		);
