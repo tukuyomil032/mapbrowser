@@ -5,6 +5,7 @@ package com.tukuyomil032.mapbrowser.util;
  */
 public final class MapColorUtil {
     public static final int[] MAP_COLORS_RGB = buildPalette();
+    private static final byte[] COLOR_LUT = buildLut();
 
     private MapColorUtil() {
     }
@@ -13,25 +14,18 @@ public final class MapColorUtil {
      * Converts RGB to nearest palette index.
      */
     public static byte toMapColor(final int r, final int g, final int b) {
-        int bestIndex = 0;
-        int bestDistance = Integer.MAX_VALUE;
+        final int rr = r & 0xFF;
+        final int gg = g & 0xFF;
+        final int bb = b & 0xFF;
+        final int rgb = (rr << 16) | (gg << 8) | bb;
+        return toMapColor(rgb);
+    }
 
-        for (int i = 0; i < MAP_COLORS_RGB.length; i++) {
-            final int rgb = MAP_COLORS_RGB[i];
-            final int pr = (rgb >> 16) & 0xFF;
-            final int pg = (rgb >> 8) & 0xFF;
-            final int pb = rgb & 0xFF;
-            final int dr = r - pr;
-            final int dg = g - pg;
-            final int db = b - pb;
-            final int distance = (dr * dr) + (dg * dg) + (db * db);
-            if (distance < bestDistance) {
-                bestDistance = distance;
-                bestIndex = i;
-            }
-        }
-
-        return (byte) bestIndex;
+    /**
+     * Converts packed RGB to nearest palette index.
+     */
+    public static byte toMapColor(final int rgb) {
+        return COLOR_LUT[rgb & 0x00FFFFFF];
     }
 
     private static int[] buildPalette() {
@@ -54,5 +48,37 @@ public final class MapColorUtil {
         }
 
         return palette;
+    }
+
+    private static byte[] buildLut() {
+        final byte[] lut = new byte[1 << 24];
+        for (int rgb = 0; rgb < lut.length; rgb++) {
+            lut[rgb] = slowNearest(rgb);
+        }
+        return lut;
+    }
+
+    private static byte slowNearest(final int rgb) {
+        final int r = (rgb >> 16) & 0xFF;
+        final int g = (rgb >> 8) & 0xFF;
+        final int b = rgb & 0xFF;
+
+        int bestIndex = 0;
+        int bestDistance = Integer.MAX_VALUE;
+        for (int i = 0; i < MAP_COLORS_RGB.length; i++) {
+            final int p = MAP_COLORS_RGB[i];
+            final int pr = (p >> 16) & 0xFF;
+            final int pg = (p >> 8) & 0xFF;
+            final int pb = p & 0xFF;
+            final int dr = r - pr;
+            final int dg = g - pg;
+            final int db = b - pb;
+            final int distance = (dr * dr) + (dg * dg) + (db * db);
+            if (distance < bestDistance) {
+                bestDistance = distance;
+                bestIndex = i;
+            }
+        }
+        return (byte) bestIndex;
     }
 }

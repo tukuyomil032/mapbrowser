@@ -32,8 +32,6 @@ import org.bukkit.event.player.PlayerQuitEvent;
 import org.bukkit.inventory.Inventory;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.inventory.meta.ItemMeta;
-import org.bukkit.inventory.meta.MapMeta;
-import org.bukkit.map.MapView;
 import org.bukkit.persistence.PersistentDataType;
 import org.bukkit.util.BoundingBox;
 import org.bukkit.util.Vector;
@@ -44,7 +42,6 @@ import com.tukuyomil032.mapbrowser.util.RaycastUtil;
 import com.tukuyomil032.mapbrowser.util.UrlSecurityValidator;
 
 import net.kyori.adventure.text.Component;
-import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 
 /**
@@ -54,6 +51,7 @@ public final class InputHandler implements Listener {
     private final MapBrowserPlugin plugin;
     private final Map<UUID, AnvilSession> anvilSessions;
     private final HashSet<UUID> assembledScreens;
+    private final InputMessageHelper messages;
     private final NamespacedKey toolKey;
     private final NamespacedKey screenIdKey;
     private final NamespacedKey tileIndexKey;
@@ -66,6 +64,7 @@ public final class InputHandler implements Listener {
         this.plugin = plugin;
         this.anvilSessions = new HashMap<>();
         this.assembledScreens = new HashSet<>();
+        this.messages = new InputMessageHelper(plugin);
         this.toolKey = new NamespacedKey(plugin, "tool");
         this.screenIdKey = new NamespacedKey(plugin, "screen-id");
         this.tileIndexKey = new NamespacedKey(plugin, "tile-index");
@@ -259,7 +258,7 @@ public final class InputHandler implements Listener {
         final Screen screen = target.get();
         if (session.mode() == AnvilMode.URL) {
             if (!validated.allowed()) {
-                sendError(player, validated.valueOrReason(), validated.valueOrReason());
+                messages.sendError(player, validated.valueOrReason(), validated.valueOrReason());
                 player.closeInventory();
                 return;
             }
@@ -528,11 +527,11 @@ public final class InputHandler implements Listener {
     }
 
     private void openUrlInput(final Player player, final Screen screen) {
-        final String language = resolveLanguage();
+        final String language = messages.resolveLanguage();
         final Inventory anvil = Bukkit.createInventory(
             player,
             InventoryType.ANVIL,
-            Component.text(plugin.getMessageLocalizer().translateKey(language, "input.anvil.url.title", t("MapBrowser URL", "MapBrowser URL入力")))
+            Component.text(plugin.getMessageLocalizer().translateKey(language, "input.anvil.url.title", messages.t("MapBrowser URL", "MapBrowser URL入力")))
         );
         final ItemStack paper = new ItemStack(Material.PAPER);
         final ItemMeta meta = paper.getItemMeta();
@@ -550,11 +549,11 @@ public final class InputHandler implements Listener {
     }
 
     private void openTextInput(final Player player, final Screen screen) {
-        final String language = resolveLanguage();
+        final String language = messages.resolveLanguage();
         final Inventory anvil = Bukkit.createInventory(
             player,
             InventoryType.ANVIL,
-            Component.text(plugin.getMessageLocalizer().translateKey(language, "input.anvil.text.title", t("MapBrowser Text Input", "MapBrowser テキスト入力")))
+            Component.text(plugin.getMessageLocalizer().translateKey(language, "input.anvil.text.title", messages.t("MapBrowser Text Input", "MapBrowser テキスト入力")))
         );
         final ItemStack paper = new ItemStack(Material.PAPER);
         final ItemMeta meta = paper.getItemMeta();
@@ -569,30 +568,12 @@ public final class InputHandler implements Listener {
             "テキストを入力し、結果スロットをクリックして送信してください。");
     }
 
-    private String resolveLanguage() {
-        final String configured = plugin.getConfig().getString("ui.language", "en");
-        if (configured == null) {
-            return "en";
-        }
-        final String normalized = configured.trim().toLowerCase(Locale.ROOT).replace('_', '-');
-        return normalized.isBlank() ? "en" : normalized;
-    }
-
-    private String t(final String en, final String ja) {
-        final String source = resolveLanguage().startsWith("ja") ? ja : en;
-        return plugin.getMessageLocalizer().translateRaw(resolveLanguage(), source);
-    }
-
-    private void sendError(final Player player, final String en, final String ja) {
-        player.sendMessage(Component.text("[ERR] ", NamedTextColor.RED).append(Component.text(t(en, ja), NamedTextColor.WHITE)));
-    }
-
     private void sendInfoKey(final Player player, final String key, final String en, final String ja) {
-        player.sendMessage(Component.text("• ", NamedTextColor.GRAY).append(Component.text(tk(key, en, ja), NamedTextColor.WHITE)));
+        messages.sendInfoKey(player, key, en, ja);
     }
 
     private void sendErrorKey(final Player player, final String key, final String en, final String ja) {
-        player.sendMessage(Component.text("[ERR] ", NamedTextColor.RED).append(Component.text(tk(key, en, ja), NamedTextColor.WHITE)));
+        messages.sendErrorKey(player, key, en, ja);
     }
 
     private void sendInfoKey(
@@ -602,19 +583,7 @@ public final class InputHandler implements Listener {
             final String ja,
             final java.util.Map<String, ?> placeholders
     ) {
-        player.sendMessage(Component.text("• ", NamedTextColor.GRAY).append(Component.text(tkp(key, en, ja, placeholders), NamedTextColor.WHITE)));
-    }
-
-    private String tk(final String key, final String en, final String ja) {
-        final String language = resolveLanguage();
-        final String fallback = language.startsWith("ja") ? ja : en;
-        return plugin.getMessageLocalizer().translateKey(language, key, fallback);
-    }
-
-    private String tkp(final String key, final String en, final String ja, final java.util.Map<String, ?> placeholders) {
-        final String language = resolveLanguage();
-        final String fallback = language.startsWith("ja") ? ja : en;
-        return plugin.getMessageLocalizer().translateKey(language, key, fallback, placeholders);
+        messages.sendInfoKey(player, key, en, ja, placeholders);
     }
 
     private boolean ensureInteractable(final Player player, final Screen screen) {
@@ -730,7 +699,7 @@ public final class InputHandler implements Listener {
                     continue;
                 }
 
-                frame.setItem(createScreenMapItem(screen, index), false);
+                frame.setItem(InputScreenMapItemFactory.createScreenMapItem(screen, index, screenIdKey, tileIndexKey), false);
                 placed++;
             }
         }
@@ -981,64 +950,7 @@ public final class InputHandler implements Listener {
             final Screen screen,
             final Vector clickedPosition
     ) {
-        final Optional<Integer> tileIndex = resolveTileIndexFromFrame(frame);
-        if (tileIndex.isEmpty()) {
-            return Optional.empty();
-        }
-
-        final int frameIndex = tileIndex.get();
-        final int tileX = frameIndex % screen.getWidth();
-        final int tileY = frameIndex / screen.getWidth();
-        final Vector worldHit = frame.getLocation().toVector().add(clickedPosition);
-        final Vector local = normalizeFrameHit(frame, worldHit);
-        final RaycastUtil.Vector2i pixel = RaycastUtil.toBrowserCoords(local, 1, 1);
-        final int x = (tileX * 128) + pixel.x();
-        final int y = (tileY * 128) + pixel.y();
-        return Optional.of(new RaycastUtil.Vector2i(x, y));
-    }
-
-    private Vector normalizeFrameHit(final ItemFrame frame, final Vector worldHit) {
-        final BoundingBox box = frame.getBoundingBox();
-        final double nx = normalizeAxis(worldHit.getX(), box.getMinX(), box.getMaxX());
-        final double ny = normalizeAxis(worldHit.getY(), box.getMinY(), box.getMaxY());
-        final double nz = normalizeAxis(worldHit.getZ(), box.getMinZ(), box.getMaxZ());
-
-        final double u = switch (frame.getFacing()) {
-            case NORTH -> nx;
-            case SOUTH -> 1.0 - nx;
-            case EAST -> nz;
-            case WEST -> 1.0 - nz;
-            default -> nx;
-        };
-        final double v = 1.0 - ny;
-        return new Vector(clamp01(u), clamp01(v), 0.0);
-    }
-
-    private double normalizeAxis(final double value, final double min, final double max) {
-        if (max <= min) {
-            return 0.5;
-        }
-        return (value - min) / (max - min);
-    }
-
-    private double clamp01(final double value) {
-        return Math.max(0.0, Math.min(1.0, value));
-    }
-
-    private Optional<Integer> resolveTileIndexFromFrame(final ItemFrame frame) {
-        final ItemStack displayed = frame.getItem();
-        if (!displayed.hasItemMeta()) {
-            return Optional.empty();
-        }
-        final ItemMeta displayedMeta = displayed.getItemMeta();
-        if (displayedMeta == null) {
-            return Optional.empty();
-        }
-        final Integer tileIndex = displayedMeta.getPersistentDataContainer().get(tileIndexKey, PersistentDataType.INTEGER);
-        if (tileIndex == null || tileIndex < 0) {
-            return Optional.empty();
-        }
-        return Optional.of(tileIndex);
+        return FrameClickResolver.resolveClickPosition(frame, screen, clickedPosition, tileIndexKey);
     }
 
     private enum ToolAction {
@@ -1064,21 +976,4 @@ public final class InputHandler implements Listener {
     private record AnvilSession(UUID screenId, AnvilMode mode) {
     }
 
-    private ItemStack createScreenMapItem(final Screen screen, final int tileIndex) {
-        final int[] mapIds = screen.getMapIds();
-        final ItemStack mapItem = new ItemStack(Material.FILLED_MAP, 1);
-        if (!(mapItem.getItemMeta() instanceof MapMeta meta)) {
-            return mapItem;
-        }
-
-        final int mapId = mapIds[tileIndex];
-        final MapView mapView = Bukkit.getMap(mapId);
-        if (mapView != null) {
-            meta.setMapView(mapView);
-        }
-        meta.getPersistentDataContainer().set(screenIdKey, PersistentDataType.STRING, screen.getId().toString());
-        meta.getPersistentDataContainer().set(tileIndexKey, PersistentDataType.INTEGER, tileIndex);
-        mapItem.setItemMeta(meta);
-        return mapItem;
-    }
 }
