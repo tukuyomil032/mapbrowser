@@ -21,6 +21,17 @@ Validation notes:
 Clients without the Companion Mod cannot decode and play plugin-message audio payloads.
 Set `audio.test-opus-base64` to emit deterministic Opus test payloads for troubleshooting.
 
+## Phase5 release readiness checklist
+
+1. Run `/mb admin status` and confirm IPC health summary and inbound counters are stable.
+2. Verify `MapBrowserService.status()` values are populated for:
+	- `ipcConnected`, `screenCount`, `onlinePlayers`
+	- `ipcHealthSummary`, `inboundTotal`, `inboundFrame`, `inboundDelta`
+	- `inboundErrorEvent`, `ipcUptimeSeconds`, `audioDiagnostics`
+3. Send Velocity plugin messages for `OPEN_URL`, `RELOAD_SCREEN`, `SET_FPS`, `CLOSE_SCREEN`, `BACK_SCREEN`, `FORWARD_SCREEN` and confirm acceptance logs.
+4. Decode Velocity `STATUS` with EOF-safe parsing (legacy fields first, then extended fields).
+5. Re-run build and smoke test with at least one screen loaded and one unloaded screen to verify unload safeguards.
+
 ## Release process
 
 1. bump version in build.gradle.kts

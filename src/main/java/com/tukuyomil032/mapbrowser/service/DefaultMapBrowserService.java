@@ -123,9 +123,18 @@ public final class DefaultMapBrowserService implements MapBrowserService {
      */
     @Override
     public ServiceStatus status() {
+        final var ipcStats = plugin.getBrowserIPCClient().snapshotStats();
         return new ServiceStatus(
                 plugin.getBrowserIPCClient().isConnected(),
-                plugin.getScreenManager().getAllScreens().size()
+                plugin.getScreenManager().getAllScreens().size(),
+                plugin.getServer().getOnlinePlayers().size(),
+                plugin.getBrowserIPCClient().healthSummary(),
+                ipcStats.inboundTotal(),
+                ipcStats.inboundFrame(),
+                ipcStats.inboundDelta(),
+                ipcStats.inboundErrorEvent(),
+                ipcStats.uptimeSeconds(),
+                plugin.getAudioBridge().diagnostics()
         );
     }
 }

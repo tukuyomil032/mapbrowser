@@ -144,3 +144,5 @@ Velocity `STATUS` currently returns:
 - inboundFrame
 - inboundDelta
 - audioDiagnostics
+
+`MapBrowserService.status()` additionally exposes `inboundErrorEvent` and `ipcUptimeSeconds` for plugin-side diagnostics.

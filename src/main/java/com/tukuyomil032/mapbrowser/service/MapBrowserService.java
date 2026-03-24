@@ -58,6 +58,17 @@ public interface MapBrowserService {
     /**
      * Immutable public status snapshot.
      */
-    record ServiceStatus(boolean ipcConnected, int screenCount) {
+    record ServiceStatus(
+            boolean ipcConnected,
+            int screenCount,
+            int onlinePlayers,
+            String ipcHealthSummary,
+            long inboundTotal,
+            long inboundFrame,
+            long inboundDelta,
+            long inboundErrorEvent,
+            long ipcUptimeSeconds,
+            String audioDiagnostics
+    ) {
     }
 }

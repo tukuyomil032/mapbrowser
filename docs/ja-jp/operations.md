@@ -24,6 +24,17 @@ Companion Mod とは:
 MapBrowserサーバーが送る音声ペイロードをクライアント側で受信・デコードし、位置情報付きで再生するためのクライアントMod。
 既製の汎用Modをそのまま使う前提ではなく、MapBrowser向けのプロトコルに合わせた実装（または互換実装）が必要。
 
+## Phase5 公開前チェックリスト
+
+1. `/mb admin status` を実行し、IPC health summary と inbound counters が安定していることを確認する
+2. `MapBrowserService.status()` の以下の値が取得できることを確認する
+	- `ipcConnected`, `screenCount`, `onlinePlayers`
+	- `ipcHealthSummary`, `inboundTotal`, `inboundFrame`, `inboundDelta`
+	- `inboundErrorEvent`, `ipcUptimeSeconds`, `audioDiagnostics`
+3. Velocity Plugin Messaging で `OPEN_URL`, `RELOAD_SCREEN`, `SET_FPS`, `CLOSE_SCREEN`, `BACK_SCREEN`, `FORWARD_SCREEN` を送信し、受理ログを確認する
+4. Velocity `STATUS` は EOF セーフな順序（先頭の互換フィールド -> 拡張フィールド）でデコードする
+5. 少なくとも loaded と unloaded のスクリーンを 1 つずつ用意してビルド後スモークテストを実施し、unload ガードが有効であることを確認する
+
 ## リリース手順
 
 1. build.gradle.kts の version を更新

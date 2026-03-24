@@ -144,3 +144,5 @@ Velocity `STATUS` の現在の返却項目:
 - inboundFrame
 - inboundDelta
 - audioDiagnostics
+
+`MapBrowserService.status()` では、プラグイン連携向け診断として `inboundErrorEvent` と `ipcUptimeSeconds` も取得可能。

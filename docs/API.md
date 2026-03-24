@@ -40,6 +40,19 @@ Current methods are defined in [src/main/java/com/tukuyomil032/mapbrowser/servic
 - `boolean goForward(UUID screenId)`
 - `ServiceStatus status()`
 
+`ServiceStatus` fields:
+
+- `boolean ipcConnected`
+- `int screenCount`
+- `int onlinePlayers`
+- `String ipcHealthSummary`
+- `long inboundTotal`
+- `long inboundFrame`
+- `long inboundDelta`
+- `long inboundErrorEvent`
+- `long ipcUptimeSeconds`
+- `String audioDiagnostics`
+
 | Method | Input | Output | Behavior |
 |---|---|---|---|
 | getAllScreens | - | Collection<Screen> | Returns current runtime screen list |
@@ -57,8 +70,8 @@ Current methods are defined in [src/main/java/com/tukuyomil032/mapbrowser/servic
 - `openUrl(...)` sends a navigate request to browser-renderer and updates in-memory URL state.
 - Browser control methods (`openUrl`, `reload`, `setFps`, `goBack`, `goForward`) return/apply only for loaded screens.
 - URL validation should be handled by caller or routed through command/security flow when needed.
-- `status()` currently exposes `ipcConnected` and `screenCount`.
-- API is intentionally minimal and may evolve before stable release.
+- `status()` now includes compatibility-focused diagnostics for release operations.
+- Velocity `STATUS` payload intentionally keeps a compatibility-first subset.
 
 ## Integration Guidance
 
@@ -83,7 +96,9 @@ service.goBack(screenId);
 
 MapBrowserService.ServiceStatus status = service.status();
 plugin.getLogger().info("ipcConnected=" + status.ipcConnected()
-	+ ", screens=" + status.screenCount());
+	+ ", screens=" + status.screenCount()
+	+ ", uptimeSec=" + status.ipcUptimeSeconds()
+	+ ", inboundTotal=" + status.inboundTotal());
 ```
 
 ### Velocity plugin message payload example
@@ -121,6 +136,7 @@ try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload))
 運用上の推奨:
 - 互換性のため、先頭3項目（`screenCount`, `ipcConnected`, `onlinePlayers`）は必ず読み取る。
 - 拡張項目は EOF ガードを入れて段階的に対応する。
+- `MapBrowserService.status()` は上記に加えて `inboundErrorEvent` と `ipcUptimeSeconds` も取得可能。
 
 ### Companion Mod context
 
@@ -128,7 +144,7 @@ try (DataInputStream in = new DataInputStream(new ByteArrayInputStream(payload))
 - Minecraft vanilla clients cannot decode these payloads as in-game audio.
 - A companion client-side mod is required to decode and play those packets spatially.
 - This repository currently provides the server-side transport and diagnostics path; client-side playback implementation and compatibility validation must be done with the companion mod side.
-- Companion Mod の詳細要件は `docs/companion_mods/REQUIREMENTS.md` を参照。
+- See `docs/companion_mods/REQUIREMENTS.md` for detailed companion-mod requirements.
 
 ## Velocity Bridge Commands (Current)
 
