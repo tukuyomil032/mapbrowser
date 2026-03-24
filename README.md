@@ -171,6 +171,10 @@ Detailed manuals are available in both locales:
 
 - English index: docs/en-us/README.md
 - Japanese index: docs/ja-jp/README.md
+- Documentation hub: docs/README.md
+- Public API draft: docs/API.md
+- Companion Mod requirements: docs/companion_mods/REQUIREMENTS.md
+- Companion Mod agent guide: docs/companion_mods/AGENTS.md
 
 ## Release Automation
 

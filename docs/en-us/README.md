@@ -11,7 +11,9 @@ This directory contains the full user and operator documentation for MapBrowser.
 - [Operations](operations.md)
 - [Troubleshooting](troubleshooting.md)
 - [Roadmap Ideas](roadmap-ideas.md)
+- [Public API draft](../API.md)
 - [Companion Mod requirements (developer)](../companion_mods/REQUIREMENTS.md)
+- [Companion Mod AGENTS guide](../companion_mods/AGENTS.md)
 
 ## Audience
 

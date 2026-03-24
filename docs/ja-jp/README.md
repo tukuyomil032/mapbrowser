@@ -12,7 +12,9 @@
 - [運用ガイド](operations.md)
 - [トラブルシュート](troubleshooting.md)
 - [改善案・新機能アイデア集](roadmap-ideas.md)
+- [公開APIドラフト](../API.md)
 - [Companion Mod 要件定義（開発者向け）](../companion_mods/REQUIREMENTS.md)
+- [Companion Mod AGENTSガイド](../companion_mods/AGENTS.md)
 
 ## 対象読者
 
