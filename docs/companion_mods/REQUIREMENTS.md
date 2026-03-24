@@ -291,3 +291,58 @@ MapBrowserCompanion 初版の受け入れ条件:
 - 本書は「MapBrowser本体のPhase5公開準備」と同時に運用するCompanion Mod要件である。
 - サーバー側の最終リリース判定では、本書のテスト要件を最低限満たすことが推奨される。
 - 実装リポジトリはMapBrowser本体と分離し、CI/CD・バージョニングを独立運用する。
+
+---
+
+## 14. 互換性マトリクス（公開前固定）
+
+| 項目 | サポート範囲 | 備考 |
+|---|---|---|
+| MapBrowser Plugin | 1.0.x (Phase5) | `mapbrowser:audio` payload v1 |
+| Companion Mod | 0.1.x (initial) | payload v1 decode fixed |
+| Minecraft Client | 1.21.x | Fabric 前提 |
+| Fabric Loader | 0.15.x 以降 | 初版目標 |
+| Java Runtime | 21 | クライアント起動環境 |
+
+互換ポリシー:
+
+- patch/minor 更新では payload v1 の後方互換を維持する。
+- payload 破壊的変更は `v2` として明示し、MapBrowser Plugin 側と同時リリースする。
+- 互換対象外バージョンでは、起動時に明示ログを出し音声機能のみ無効化する。
+
+---
+
+## 15. 運用FAQ（公開版）
+
+Q1. Companion Mod 未導入クライアントはどうなるか?
+
+- 映像表示は継続可能。
+- `mapbrowser:audio` を再生できないため音声は無効。
+
+Q2. 音声が出ないときの優先確認項目は?
+
+1. サーバー側 `audio.companion-mod-enabled: true`
+2. クライアント側 Companion Mod 導入済み
+3. サーバー側 `/mb admin status` で audio diagnostics のカウンタ増加
+4. 距離が `audio.max-distance` の範囲内
+
+Q3. 破損payloadやデコード失敗時の期待動作は?
+
+- 当該フレームのみ破棄し、再生ループは継続する。
+- diagnostics の drop/decode-fail カウンタを増加させる。
+
+Q4. 複数スクリーン再生で音が混線する場合は?
+
+- `maxConcurrentScreens` を下げる。
+- `bufferMillis` を 80-160ms で再調整する。
+- 古いキュー破棄ポリシーを有効化する。
+
+---
+
+## 16. 公開前チェックリスト（Companion Mod）
+
+1. `mapbrowser:audio` payload v1 を 30 分連続で受信し、致命的例外が発生しない。
+2. world 切替・再接続時に音源クリーンアップ漏れがない。
+3. Companion Mod 未導入クライアントでサーバー機能が退行しない。
+4. diagnostics（受信/破棄/遅延）をログまたはオーバーレイで確認できる。
+5. 本ドキュメントの互換性マトリクスをリリースノートへ転載済み。
