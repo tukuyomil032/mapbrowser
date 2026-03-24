@@ -33,9 +33,21 @@ MAPBROWSER/
 │   │   ├── BrowserIPCClient.java  ← WS クライアント + 子プロセス起動・管理
 │   │   └── IPCMessage.java        ← IPC メッセージ型定義（Java 側）
 │   ├── input/
-│   │   └── InputHandler.java      ← PlayerInteractEvent → IPC 変換
+│   │   ├── InputHandler.java      ← PlayerInteractEvent → IPC 変換（ルーティング）
+│   │   ├── FrameClickResolver.java ← 額縁クリック座標の正規化・変換
+│   │   ├── InputMessageHelper.java ← 入力系メッセージのローカライズ/送信
+│   │   └── InputScreenMapItemFactory.java ← 自動配置用マップアイテム生成
 │   ├── command/
-│   │   └── MapBrowserCommand.java ← /mb コマンド一式
+│   │   ├── MapBrowserCommand.java ← /mb コマンドのディスパッチ
+│   │   ├── MapAdminSupport.java   ← /mb admin 系の処理
+│   │   ├── MapMenuSupport.java    ← メニュー表示とクリック処理
+│   │   ├── MapToolItemSupport.java ← /mb give ツール配布
+│   │   ├── MapScreenInfoSupport.java ← /mb list, /mb info 表示
+│   │   ├── MapTileRangeParser.java ← give-frame の範囲式解析
+│   │   ├── MapItemDistributor.java ← スクリーンタイル配布・生成
+│   │   ├── MapCommandMessageRenderer.java ← コマンドUI描画
+│   │   ├── MapCommandLocalization.java ← コマンド文言ローカライズ
+│   │   └── MapScreenQueryResolver.java ← screen クエリ解決
 │   ├── permission/
 │   │   └── PermissionManager.java ← LuckPerms / Vault / OP フォールバック
 │   ├── storage/

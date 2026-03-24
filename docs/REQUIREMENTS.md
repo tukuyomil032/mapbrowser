@@ -106,9 +106,14 @@ MAPBROWSER/                          ← リポジトリルート
 │       │   │   ├── BrowserIPCClient.java    ← WebSocket IPC クライアント
 │       │   │   └── IPCMessage.java          ← メッセージ型定義
 │       │   ├── input/
-│       │   │   └── InputHandler.java        ← プレイヤーインタラクション
+│       │   │   ├── InputHandler.java        ← プレイヤーインタラクション
+│       │   │   ├── FrameClickResolver.java  ← 額縁クリック座標変換
+│       │   │   └── InputMessageHelper.java  ← 入力メッセージ補助
 │       │   ├── command/
-│       │   │   └── MapBrowserCommand.java   ← /mb コマンド
+│       │   │   ├── MapBrowserCommand.java   ← /mb コマンド
+│       │   │   ├── MapAdminSupport.java     ← admin/perf コマンド
+│       │   │   ├── MapTileRangeParser.java  ← tile-range 解析
+│       │   │   └── MapItemDistributor.java  ← マップ配布補助
 │       │   ├── permission/
 │       │   │   └── PermissionManager.java   ← LuckPerms / Vault 連携
 │       │   ├── storage/
@@ -325,7 +330,12 @@ void onError(UUID screenId, String message)
 
 ### 5.6 InputHandler.java
 
-**責務**: プレイヤーのインタラクションを検出し BrowserIPCClient に転送
+**責務**: プレイヤーのインタラクションを検出し BrowserIPCClient に転送（ルーティング層）
+
+**分割補助クラス**:
+- `FrameClickResolver` — 額縁ヒット位置の正規化とブラウザ座標変換
+- `InputMessageHelper` — 入力系メッセージのローカライズ・送信
+- `InputScreenMapItemFactory` — 自動配置時に使う画面紐付けマップ生成
 
 **対応イベント**:
 - `PlayerInteractEvent` — 額縁への右クリック
@@ -350,7 +360,14 @@ static final int[] MAP_COLORS_RGB = { ... };
 
 // RGB バイト値を最近傍 MapColor インデックスに変換（サーバー検証用）
 static byte toMapColor(int r, int g, int b)
+
+// 24bit packed RGB を O(1) で MapColor へ変換
+static byte toMapColor(int rgb)
 ```
+
+**実装方針**:
+- 起動時に `byte[1<<24]` LUT を構築
+- 実行時変換は LUT 参照のみ（線形探索を回避）
 
 > **注**: 実際の Floyd-Steinberg 量子化は Node.js 側の Worker Thread で行う。Java 側はパレット定義のみ持ち、受信したインデックス配列をそのまま MapPacket に載せる。
 
@@ -481,6 +498,11 @@ class FrameProcessor {
   }
 }
 ```
+
+**最新実装メモ**:
+- シーン別ポリシー（静止/動画）で差分閾値・タイル変化閾値・skip ratio を切り替え
+- `changedPixels / totalPixels` による割合ベース `SKIP` 判定
+- 中央優先ソート後に隣接タイルを結合し、DELTA送信件数を削減
 
 ### 6.8 quantize.worker.ts（Worker Thread）
 
